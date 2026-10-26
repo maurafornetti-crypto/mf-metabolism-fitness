@@ -212,6 +212,13 @@ ul.clean{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}
 .check{display:flex;gap:10px;align-items:center;min-height:40px;font-weight:600}
 .check input{width:20px;height:20px;accent-color:var(--accent);flex:none}
 .tabbar.five .tab{font-size:11px}
+.tabbar.six .tab{font-size:10px;padding-left:0;padding-right:0}
+.gfigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.gfig{max-height:300px}
+.gl{margin:6px 0;padding-left:18px;font-size:14px;line-height:1.5}
+.gl li{margin-bottom:6px}
+.guide ol.gl li{padding:6px 0;border-top:1px solid var(--line)}
+.chartbox{overflow:hidden}
 .subt{font-family:var(--f-display);font-weight:600;font-size:15px;margin:8px 0 -2px}
 .subt:first-child{margin-top:0}
 </style></head><body>
@@ -582,7 +589,7 @@ var S={db:null,sample:null,downloads:null,uid:null,imgMax:0,
   view:'list',tab:'intervista',cid:null,client:null,measures:[],labs:[],plan:null,loading:false,
   draft:null,draftId:null,saving:0,saveErr:false,
   busy:{},err:{},info:{},ctl:null,
-  ui:{q:'',day:0,confirmDel:false,confirmRegen:false,transcript:'',mnotes:'',labtext:'',openLab:null,dayInstr:'',planNotes:''}};
+  ui:{q:'',day:0,confirmDel:false,confirmRegen:false,transcript:'',mnotes:'',labtext:'',openLab:null,dayInstr:'',planNotes:'',tday:0,trainNotes:'',trainChange:''}};
 
 var ICON={
  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
@@ -590,6 +597,7 @@ var ICON={
  misure:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="1.5" transform="rotate(-35 12 12)"/><path d="M9 11l1.5 1.2M12 8.5l1.5 1.2M6.5 13.5l1.5 1.2"/></svg>',
  esami:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 001.7 3h10.6a2 2 0 001.7-3l-5-9V3"/><path d="M7.5 15h9"/></svg>',
  piano:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20c0-9 5-14 15-15 0 10-5 15-15 15z"/><path d="M5 20c3-5 6-8 10-10"/></svg>',
+ allenamento:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>',
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
 };
 function spinner(t){return '<span class="spin"></span><span>'+esc(t)+'</span>'}
@@ -787,11 +795,11 @@ async function newClient(){
   }catch(e){S.err['new']='Non sono riuscita a creare il cliente. Riprova.';render()}}
 
 async function openClient(id){
-  S.view='client';S.cid=id;S.tab='intervista';S.loading=true;S.client=null;S.draft=null;S.plan=null;S.measures=[];S.labs=[];
+  S.view='client';S.cid=id;S.tab='intervista';S.loading=true;S.client=null;S.draft=null;S.plan=null;S.train=null;S.photos=[];S.measures=[];S.labs=[];
   S.ui.day=0;S.ui.confirmDel=false;S.ui.confirmRegen=false;S.busy={};S.err={};S.info={};S.ui.open={ana:true};render();
   try{
     var b=base();
-    var r=await Promise.all([b.get(),b.collection('measures').get(),b.collection('labs').get(),b.collection('plans').doc('current').get()]);
+    var r=await Promise.all([b.get(),b.collection('measures').get(),b.collection('labs').get(),b.collection('plans').doc('current').get(),b.collection('training').doc('current').get(),b.collection('photos').get()]);
     S.client=clone(r[0].data())||{name:'Senza nome'};
     S.client.int=S.client.int||{};S.client.aiFields=S.client.aiFields||[];S.client.mancanti=S.client.mancanti||[];
     S.measures=r[1].docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});
@@ -799,6 +807,8 @@ async function openClient(id){
     S.labs=r[2].docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});
     S.labs.sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0)});
     S.plan=r[3].exists?clone(r[3].data()):null;
+    S.train=r[4]&&r[4].exists?clone(r[4].data()):null;
+    S.photos=(r[5]?r[5].docs:[]).map(function(d){var o=clone(d.data());o.id=d.id;return o});
   }catch(e){S.client={name:'Errore di caricamento',int:{},aiFields:[],mancanti:[]};S.err.load="Non riesco a leggere i dati di questo cliente. Torna all'elenco e riprova."}
   S.loading=false;render()}
 
@@ -806,7 +816,7 @@ function goBack(){flushAll();dictStop();S.view='list';S.client=null;S.cid=null;S
 
 async function deleteClient(){
   try{var b=base();
-    for(var sub of ['measures','labs','plans']){var s=await b.collection(sub).get();for(var d of s.docs){await b.collection(sub).doc(d.id).delete()}}
+    for(var sub of ['measures','labs','plans','training','photos']){var s=await b.collection(sub).get();for(var d of s.docs){await b.collection(sub).doc(d.id).delete()}}
     await b.delete();
     delete timers.client;delete fns.client;S.view='list';S.client=null;S.cid=null;S.ui.confirmDel=false;render();
   }catch(e){S.err.del='Eliminazione non riuscita. Riprova.';render()}}
@@ -821,9 +831,10 @@ function clientView(){
   else if(S.tab==='misure')h+=tabMisure();
   else if(S.tab==='esami')h+=tabEsami();
   else if(S.tab==='piano')h+=tabPiano();
+  else if(S.tab==='allenamento')h+=tabAllenamento();
   else h+=tabReport();
-  var tabs=[['intervista','Intervista'],['misure','Misure'],['esami','Esami'],['piano','Piano'],['report','Report']];
-  h+='<nav class="tabbar five"><div class="in" style="grid-template-columns:repeat(5,1fr)">'+tabs.map(function(t){return '<button class="tab'+(S.tab===t[0]?' on':'')+'" data-act="tab" data-t="'+t[0]+'">'+ICON[t[0]]+t[1]+'</button>'}).join('')+'</div></nav>';
+  var tabs=[['intervista','Intervista'],['misure','Misure'],['esami','Esami'],['piano','Piano'],['allenamento','Allenam.'],['report','Report']];
+  h+='<nav class="tabbar five six"><div class="in" style="grid-template-columns:repeat(6,1fr)">'+tabs.map(function(t){return '<button class="tab'+(S.tab===t[0]?' on':'')+'" data-act="tab" data-t="'+t[0]+'">'+ICON[t[0]]+t[1]+'</button>'}).join('')+'</div></nav>';
   return h}
 
 /* ---------- Intervista ---------- */
@@ -996,8 +1007,8 @@ function measureForm(){
   h+='<div class="card"><div class="grid">';
   h+='<label class="f"><span class="l">Data</span><input type="date" id="f-mdate" data-bind="d.date" value="'+esc(d.date)+'"></label>'+nf('peso','Peso','kg')+nf('altezza','Altezza','cm');
   h+='</div></div>';
-  h+='<details class="grp" data-g="m-circ" open><summary>Circonferenze<span class="cnt">cm</span></summary><div class="body"><div class="grid">'+CIRC.map(function(c){return nf('circ.'+c[0],c[1],'cm')}).join('')+'</div></div></details>';
-  h+='<details class="grp" data-g="m-pl" open><summary>Pliche<span class="cnt">mm</span></summary><div class="body"><div class="grid">'+PLICHE.map(function(c){return nf('pliche.'+c[0],c[1],'mm')}).join('')+'</div><div class="small muted">Con le 7 pliche del protocollo Jackson-Pollock (pettorale, ascellare, tricipitale, sottoscapolare, addominale, sovrailiaca, coscia), sesso ed età nella scheda, calcolo la percentuale di grasso.</div></div></details>';
+  h+='<details class="grp" data-g="m-circ" open><summary>Circonferenze<span class="cnt">cm</span></summary><div class="body"><div class="row">'+guideBtn('ci','Come si misurano (guida illustrata)')+'</div>'+(S.ui.guide==='ci'?measureGuide('ci'):'')+'<div class="grid">'+CIRC.map(function(c){return nf('circ.'+c[0],c[1],'cm')}).join('')+'</div></div></details>';
+  h+='<details class="grp" data-g="m-pl" open><summary>Pliche<span class="cnt">mm</span></summary><div class="body"><div class="row">'+guideBtn('pl','Come si misurano (guida illustrata)')+'</div>'+(S.ui.guide==='pl'?measureGuide('pl'):'')+'<div class="grid">'+PLICHE.map(function(c){return nf('pliche.'+c[0],c[1],'mm')}).join('')+'</div><div class="small muted">Con le 7 pliche del protocollo Jackson-Pollock (pettorale, ascellare, tricipitale, sottoscapolare, addominale, sovrailiaca, coscia), sesso ed età nella scheda, calcolo la percentuale di grasso.</div></div></details>';
   h+='<details class="grp" data-g="m-bia" open><summary>Bioimpedenza<span class="cnt">BIA</span></summary><div class="body"><div class="grid">'+BIA.map(function(c){return nf('bia.'+c[0],c[1],c[2])}).join('')+'</div></div></details>';
   h+='<div class="card stack"><b style="font-family:var(--f-display)">Indici calcolati</b><div id="derived">'+derivedHtml()+'</div></div>';
   h+='<div class="card stack"><b style="font-family:var(--f-display)">Interpretazione</b><textarea rows="6" id="f-minterp" data-bind="d.interpretazione" placeholder="Scrivi la tua lettura dei valori'+(S.sample?' o chiedila all\'IA':'')+'">'+esc(d.interpretazione)+'</textarea>';
@@ -1304,7 +1315,7 @@ function pad2(n){return String(n).padStart(2,'0')}
 function dkey(y,m,d){return y+'-'+pad2(m+1)+'-'+pad2(d)}
 function longDate(s){var d=new Date(s+'T00:00:00');return GIORNI[d.getDay()]+' '+d.getDate()+' '+MESI[d.getMonth()]}
 function appRoot(){return S.db.doc('data/users/'+S.uid+'/_app')}
-S.appts=[];S.ledger=[];S.apptsLoaded=false;S.ledgerLoaded=false;S.studio={studio:'',pro:'',contatto:''};
+S.tpl=[];S.appts=[];S.ledger=[];S.apptsLoaded=false;S.ledgerLoaded=false;S.studio={studio:'',pro:'',contatto:'',colore:'verde'};
 (function(){var t=new Date();S.ui.cal={y:t.getFullYear(),m:t.getMonth(),sel:today()};S.ui.led={y:t.getFullYear(),m:t.getMonth(),mode:'mese'};S.ui.apptForm=null;S.ui.ledForm=null;S.ui.rep={int:true,mis:true,graf:true,esami:true,piano:true}})();
 
 function mainTabs(active){
@@ -1312,6 +1323,7 @@ function mainTabs(active){
   return '<nav class="tabbar"><div class="in" style="grid-template-columns:repeat(3,1fr)">'+tabs.map(function(t){return '<button class="tab'+(active===t[0]?' on':'')+'" data-act="nav" data-t="'+t[0]+'">'+ICON[t[2]]+t[1]+'</button>'}).join('')+'</div></nav>'}
 
 function startExtra(){
+  appRoot().collection('tpl').onSnapshot(function(snap){S.tpl=snap.docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});if(S.view==='client'&&S.tab==='allenamento'&&!S.busy.train)render()},function(){});
   appRoot().collection('appts').onSnapshot(function(snap){
     S.appts=snap.docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});S.apptsLoaded=true;
     if(S.view==='agenda'&&!S.ui.apptForm)render()},function(){S.apptsLoaded=true});
@@ -1488,10 +1500,14 @@ function afterBind(parts,val,t){
   if(r==='a'||r==='l')return true;
   if(r==='r'){return true}
   if(r==='s'){saveStudio();return true}
+  if(r==='t'){saveTrain();return true}
+  if(r==='u'&&parts[1]==='tprog'){render();return true}
+  if(r==='u'&&parts[1]==='trainChange'){var bt2=document.querySelector('[data-act="reviseTrain"]');if(bt2)bt2.disabled=!String(val).trim();return true}
   if(r==='c'&&parts[1]==='reportSummary'){return false}
   return false}
 function moreClick(a,el,id){
   var c=S.ui.cal,l=S.ui.led;
+  if(S.view==='client'&&S.tab==='allenamento'&&S.train!==undefined&&moreTrainClick(a,el))return true;
   switch(a){
    case 'nav':flushAll();S.view=el.getAttribute('data-t');S.client=null;S.cid=null;S.ui.apptForm=null;S.ui.ledForm=null;render();return true;
    case 'calPrev':c.m--;if(c.m<0){c.m=11;c.y--}render();return true;
@@ -1516,6 +1532,9 @@ function moreClick(a,el,id){
    case 'ledDelAsk':S.ui.confirmLed=true;render();return true;
    case 'ledDel':deleteLed();return true;
    case 'exportLed':exportLedger();return true;
+   case 'pickLogo':{var lf=document.getElementById('logofile');if(lf)lf.click();return true}
+   case 'delLogo':delete S.studio.logo;delete S.studio.logoW;delete S.studio.logoH;saveStudio();render();return true;
+   case 'guide':S.ui.guide=el.getAttribute('data-g')||null;render();return true;
    case 'reportAI':reportSummaryAI();return true;
    case 'pickP':var fp=document.getElementById('pfile');if(fp)fp.click();return true;
    case 'delAtt':S.ui.planAtt=null;render();return true;
@@ -1532,7 +1551,7 @@ function tabReport(){
   h+='<div class="card stack"><h2 style="font-size:18px">Intestazione del report</h2><div class="small muted">Compare in alto nel PDF. Si salva una volta e vale per tutti i clienti.</div>'+
     '<label class="f"><span class="l">Nome dello studio</span><input type="text" id="s-studio" data-bind="s.studio" value="'+esc(S.studio.studio)+'" placeholder="Studio di Nutrizione"></label>'+
     '<label class="f"><span class="l">Il tuo nome e titolo</span><input type="text" id="s-pro" data-bind="s.pro" value="'+esc(S.studio.pro)+'"></label>'+
-    '<label class="f"><span class="l">Contatti</span><input type="text" id="s-con" data-bind="s.contatto" value="'+esc(S.studio.contatto)+'" placeholder="Telefono, email, indirizzo"></label></div>';
+    '<label class="f"><span class="l">Contatti</span><input type="text" id="s-con" data-bind="s.contatto" value="'+esc(S.studio.contatto)+'" placeholder="Telefono, email, indirizzo"></label>'+brandCard()+'</div>';
   h+='<div class="card stack"><h2 style="font-size:18px">Cosa includere</h2>';
   [['int','Il profilo e l\'obiettivo'],['mis','Misure e confronto con le visite precedenti'],['graf','Grafici sull\'andamento'],['esami','Esami e indicazioni'],['piano','Piano alimentare']].forEach(function(x){
     h+='<label class="check"><input type="checkbox" id="r-'+x[0]+'" data-bind="r.'+x[0]+'"'+(o[x[0]]?' checked':'')+'>'+esc(x[1])+'</label>'});
@@ -1594,7 +1613,7 @@ function pdfChart(doc,x,y,w,h,title,pts,unit,dec){
 async function makePdf(){
   S.busy.pdf=true;S.err.pdf=null;S.info.pdf=null;render();
   try{
-    await loadPdfLib();
+    await loadPdfLib();applyBrand();
     var jsPDF=window.jspdf.jsPDF,doc=new jsPDF({unit:'mm',format:'a4'});
     var M=16,CW=178,TOP=24,BOT=282,y=0,o=S.ui.rep,c=S.client,studio=S.studio;
     var ms=S.measures.slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))||(a.createdAt||0)-(b.createdAt||0)});
@@ -1612,7 +1631,7 @@ async function makePdf(){
       doc.autoTable(opts);y=doc.lastAutoTable.finalY+6};
 
     /* intestazione prima pagina */
-    doc.setFillColor(ACC[0],ACC[1],ACC[2]);doc.rect(0,0,210,36,'F');
+    doc.setFillColor(ACC[0],ACC[1],ACC[2]);doc.rect(0,0,210,36,'F');brandLogo(doc);
     setT(18,'bold',[255,255,255]);doc.text(T(studio.studio||'Report nutrizionale'),M,16);
     setT(9,'normal',[222,240,232]);
     var sl=[studio.pro,studio.contatto].filter(Boolean).map(T);sl.forEach(function(t,i){doc.text(t,M,23+i*4.5)});
@@ -1716,8 +1735,377 @@ async function makePdf(){
   }catch(e){S.err.pdf=(e&&e.code==='nodl')?'Il download non è disponibile in questa vista.':'Non sono riuscita a creare il PDF. Controlla la connessione e riprova.'}
   S.busy.pdf=false;render()}
 
+/* ================= Allenamento (scheda del personal trainer) ================= */
+var EX_LIB={
+ 'Gambe':['Squat a corpo libero','Squat con bilanciere','Goblet squat','Leg press','Affondi','Affondi camminati','Split squat bulgaro','Leg extension','Leg curl sdraiato','Stacco rumeno','Hip thrust','Ponte glutei','Calf in piedi','Step-up'],
+ 'Petto':['Panca piana con bilanciere','Panca piana con manubri','Panca inclinata con manubri','Chest press','Croci ai cavi','Croci con manubri','Flessioni','Dip alle parallele'],
+ 'Schiena':['Trazioni alla sbarra','Lat machine','Pulley basso','Rematore con bilanciere','Rematore con manubrio','Rematore al multipower','Stacco da terra','Iperestensioni','Face pull'],
+ 'Spalle':['Military press','Shoulder press con manubri','Alzate laterali','Alzate frontali','Alzate posteriori','Tirate al mento','Shrug'],
+ 'Braccia':['Curl con bilanciere','Curl con manubri','Curl a martello','Curl ai cavi','French press','Push-down ai cavi','Estensioni sopra la testa','Panca presa stretta'],
+ 'Core':['Plank','Plank laterale','Crunch','Crunch inverso','Russian twist','Sollevamento gambe','Dead bug','Bird dog','Mountain climber','Ab wheel'],
+ 'Cardio':['Tapis roulant','Camminata inclinata','Cyclette','Ellittica','Vogatore','Corda per saltare','Corsa leggera','Circuito a corpo libero'],
+ 'Mobilità e riscaldamento':['Mobilità spalle','Mobilità anche','Cat-camel','World\'s greatest stretch','Stretching posteriore coscia','Stretching petto','Foam roller schiena']};
+var TR_FIELDS=[
+ ['livello','Livello di esperienza','select',['Principiante','Intermedio','Avanzato']],
+ ['obiettivo','Obiettivo dell\'allenamento','select',['Dimagrimento','Ipertrofia','Forza','Tonificazione','Benessere generale','Performance sportiva','Rientro dopo infortunio']],
+ ['giorni','Giorni a settimana','select',['1','2','3','4','5','6']],
+ ['durata','Durata di una seduta','select',['30 minuti','45 minuti','60 minuti','75 minuti','90 minuti']],
+ ['luogo','Dove ti alleni','select',['Palestra','Casa','All\'aperto','Misto']],
+ ['attrezzatura','Attrezzatura disponibile','area','manubri, elastici, macchine, ecc.'],
+ ['sport','Sport e attività già svolte','area',''],
+ ['limiti','Infortuni, dolori e limiti','area','articolazioni, schiena, interventi, patologie'],
+ ['certificato','Certificato medico per attività sportiva','select',['Sì, valido','Da fare','Non necessario']],
+ ['sforzo','Dolore al petto o capogiri durante lo sforzo','select',['No','Sì: consigliare visita medica']],
+ ['t_squat','Test: squat a corpo libero','select',['Buona esecuzione','Con compensi','Non eseguibile']],
+ ['t_flex','Test: flessioni (ripetizioni)','num',''],
+ ['t_plank','Test: plank (secondi)','num',''],
+ ['t_reach','Test: sit and reach (cm)','num',''],
+ ['t_fc','Frequenza cardiaca a riposo (bpm)','num',''],
+ ['mobilita','Note su mobilità e postura','area',''],
+ ['note','Altre note','area','']];
+function ensureTrain(){
+  if(!S.train)S.train={valut:{},riassunto:'',days:[],consigli:[],note:''};
+  if(!S.train.valut)S.train.valut={};
+  if(!S.train.days)S.train.days=[];
+  if(!S.train.fine)S.train.fine={};
+  return S.train}
+function saveTrain(now){
+  var run=function(){if(!S.train)return;var data=clone(S.train);data.updatedAt=Date.now();var ref=base().collection('training').doc('current');enqueue('train',function(){return ref.set(data)})};
+  if(now){clearTimeout(timers.train);delete timers.train;delete fns.train;run()}else debounce('train',run,800)}
+function trEmptyDay(i){return {nome:'Giorno '+(i+1),focus:'',esercizi:[{nome:'',serie:'3',rip:'10',rec:'60 s',carico:'',note:'',gr:'',video:'',storico:[]}]}}
+function trField(f){
+  var v=(ensureTrain().valut[f[0]])||'',bind=' data-bind="t.'+f[0]+'" id="tf-'+f[0]+'"';
+  var lab='<span class="l">'+esc(f[1])+'</span>';
+  if(f[2]==='select'){var o=[''].concat(f[3]);if(v&&o.indexOf(v)<0)o.push(v);return '<label class="f">'+lab+'<select'+bind+'>'+o.map(function(x){return '<option value="'+esc(x)+'"'+(x===v?' selected':'')+'>'+esc(x||'Scegli')+'</option>'}).join('')+'</select></label>'}
+  if(f[2]==='num')return '<label class="f">'+lab+'<input type="text" inputmode="decimal"'+bind+' value="'+esc(v)+'"></label>';
+  return '<label class="f">'+lab+'<textarea rows="2"'+bind+' placeholder="'+esc(f[3]||'')+'">'+esc(v)+'</textarea></label>'}
+function trText(){
+  var v=ensureTrain().valut,l=[];
+  TR_FIELDS.forEach(function(f){if(v[f[0]])l.push(f[1]+': '+v[f[0]])});
+  if(S.client&&S.client.int&&S.client.int.infortuni)l.push('Infortuni dall\'intervista: '+S.client.int.infortuni);
+  return l.join('\n')||'(valutazione non compilata)'}
+function trProgressNames(){
+  var m={};ensureTrain().days.forEach(function(d){(d.esercizi||[]).forEach(function(e){var n=(e.nome||'').trim();if(!n)return;var pts=(e.storico||[]).filter(function(s){return num(s.v)!=null});if(pts.length>=1)m[n]=(m[n]||[]).concat(pts)})});
+  return m}
+function tabAllenamento(){
+  var T0=ensureTrain(),h='<div class="stack">';
+  h+='<datalist id="exlib">'+Object.keys(EX_LIB).reduce(function(a,g){return a.concat(EX_LIB[g])},[]).map(function(n){return '<option value="'+esc(n)+'">'}).join('')+'</datalist>';
+  h+='<details class="card"'+(S.ui.tvOpen||!T0.days.length?' open':'')+' data-tv="1"><summary style="font-family:var(--f-display);font-weight:600;font-size:18px;cursor:pointer">Valutazione iniziale</summary><div class="stack" style="margin-top:10px">';
+  h+='<div class="small muted">Obiettivo, disponibilità, limiti e test di partenza. L\'IA li usa per scrivere la scheda. Nei test per chi ha dolore, patologie o dubbi serve prima il parere del medico.</div>';
+  var inf=S.client.int&&S.client.int.infortuni;if(inf)h+='<div class="msg">Dall\'intervista: infortuni «'+esc(inf)+'»</div>';
+  h+='<div class="grid w2">'+TR_FIELDS.map(trField).join('')+'</div></div></details>';
+  h+='<div class="aipanel"><h2>Scheda con l\'IA</h2>';
+  if(!S.sample)h+='<p>L\'IA non è attiva: inserisci la chiave API nella pagina Clienti. Puoi creare la scheda a mano con la libreria di esercizi.</p>';
+  else{
+    h+='<p>L\'IA scrive una bozza di scheda con esercizi, serie, ripetizioni e recuperi, usando valutazione, intervista, misure e limiti. La controlli e la modifichi tu.</p>';
+    h+='<label class="f"><span class="l">Indicazioni extra</span><textarea rows="3" id="f-tnotes" data-bind="u.trainNotes" placeholder="Esempio: niente stacchi, allenamento a corpo libero, focus glutei">'+esc(S.ui.trainNotes||'')+'</textarea></label>';
+    h+='<div class="row">';
+    if(S.busy.train)h+='<button class="btn ai" disabled>'+spinner('Preparo la scheda')+'</button><button class="btn ghost" data-act="stop">Ferma</button><span class="small muted" id="prog-train"></span>';
+    else if(T0.days.length){h+=S.ui.confirmTrain?'<button class="btn ai" data-act="runTrain">Sì, sostituisci la scheda</button><button class="btn ghost" data-act="trainAskNo">Annulla</button>':'<button class="btn ai" data-act="trainAsk">Genera una nuova scheda</button>'}
+    else h+='<button class="btn ai" data-act="runTrain">Genera la scheda</button>';
+    h+='</div>';
+    if(S.ui.confirmTrain)h+='<div class="msg">La nuova scheda sostituisce quella attuale, ma i carichi registrati degli stessi esercizi restano.</div>';
+    if(S.err.train)h+='<div class="msg err">'+esc(S.err.train)+'</div>';
+    if(S.info.train)h+='<div class="msg ok">'+esc(S.info.train)+'</div>'}
+  h+='</div>';
+  if(S.sample&&T0.days.length){
+    h+='<div class="aipanel"><h2>Modifica la scheda con l\'IA</h2><p>Scrivi cosa cambiare: l\'IA modifica solo quello e lascia il resto. Puoi annullare.</p>';
+    h+='<label class="f"><span class="l">Cosa vuoi cambiare</span><textarea rows="3" id="f-tchange" data-bind="u.trainChange" placeholder="Esempio: sostituisci lo stacco con il leg curl; aggiungi un giorno solo per le gambe">'+esc(S.ui.trainChange||'')+'</textarea></label><div class="row">';
+    if(S.busy.trev)h+='<button class="btn ai" disabled>'+spinner('Applico le modifiche')+'</button><button class="btn ghost" data-act="stop">Ferma</button>';
+    else{h+='<button class="btn ai" data-act="reviseTrain"'+((S.ui.trainChange||'').trim()?'':' disabled')+'>Applica le modifiche</button>';if(S.ui.trainBackup)h+='<button class="btn ghost" data-act="undoTrain">Annulla l\'ultima modifica</button>'}
+    h+='</div>';if(S.err.trev)h+='<div class="msg err">'+esc(S.err.trev)+'</div>';
+    if(S.ui.trainChanges&&S.ui.trainChanges.length)h+='<div class="msg ok"><b>Modifiche applicate</b><ul>'+S.ui.trainChanges.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul></div>';
+    h+='</div>'}
+  if(!T0.days.length){h+='<div class="row"><button class="btn ghost" data-act="blankTrain">Crea una scheda vuota</button></div>'+tplHtml()+photosHtml();return h+'</div>'}
+  if(T0.riassunto)h+='<div class="card"><b style="font-family:var(--f-display)">Impostazione della scheda</b> '+aiTag()+'<p style="margin:6px 0 0">'+esc(T0.riassunto)+'</p></div>';
+  h+='<div class="chips">'+T0.days.map(function(d,i){return '<button class="chip'+(S.ui.tday===i?' on':'')+'" data-act="tday" data-i="'+i+'">'+esc(d.nome||('Giorno '+(i+1)))+'</button>'}).join('')+'<button class="chip" data-act="addTDay" aria-label="Aggiungi giorno">+</button></div>';
+  var di=Math.min(S.ui.tday||0,T0.days.length-1),day=T0.days[di];
+  h+='<div class="row" style="justify-content:space-between"><label class="f" style="flex:1;min-width:130px"><span class="l">Nome del giorno</span><input type="text" data-train="days.'+di+'.nome" value="'+esc(day.nome||'')+'"></label><label class="f" style="flex:1;min-width:130px"><span class="l">Focus</span><input type="text" data-train="days.'+di+'.focus" value="'+esc(day.focus||'')+'" placeholder="Gambe e glutei"></label></div>';
+  h+='<div class="row">'+(S.ui.confirmTDay===di?'<button class="btn danger on sm" data-act="delTDay">Elimina giorno</button><button class="btn ghost sm" data-act="delTDayNo">Annulla</button>':'<button class="btn danger sm" data-act="delTDayAsk">Elimina giorno</button>')+'</div>';
+  (day.esercizi||[]).forEach(function(e,ei){
+    var pre='days.'+di+'.esercizi.'+ei;
+    h+='<div class="meal"><div class="mh"><input class="nm" type="text" list="exlib" aria-label="Esercizio" data-train="'+pre+'.nome" value="'+esc(e.nome||'')+'" placeholder="Esercizio (scrivi o scegli)"><button class="xbtn" data-act="delEx" data-e="'+ei+'" aria-label="Elimina esercizio">×</button></div>';
+    h+='<div class="grid w2" style="grid-template-columns:repeat(4,1fr);gap:6px"><label class="f"><span class="l">Serie</span><input type="text" inputmode="numeric" data-train="'+pre+'.serie" value="'+esc(e.serie||'')+'"></label><label class="f"><span class="l">Rip.</span><input type="text" data-train="'+pre+'.rip" value="'+esc(e.rip||'')+'"></label><label class="f"><span class="l">Recupero</span><input type="text" data-train="'+pre+'.rec" value="'+esc(e.rec||'')+'"></label><label class="f"><span class="l">Carico</span><input type="text" data-train="'+pre+'.carico" value="'+esc(e.carico||'')+'" placeholder="kg"></label></div>';
+    h+='<input class="nt" type="text" aria-label="Nota" data-train="'+pre+'.note" value="'+esc(e.note||'')+'" placeholder="Nota (opzionale)">';
+    h+='<div class="row" style="align-items:flex-end">'+grSelect(pre,e.gr||exGroup(e.nome))+'<label class="f" style="flex:1;min-width:120px"><span class="l">Link video (opzionale)</span><input type="text" inputmode="url" data-train="'+pre+'.video" value="'+esc(e.video||'')+'" placeholder="https://…"></label><button class="btn ghost sm" data-act="exVideo" data-e="'+ei+'" aria-label="Apri o cerca il video">▶ Video</button></div>';
+    var st=(e.storico||[]).slice(-1)[0];if(st)h+='<div class="small muted">Ultimo registrato: '+esc(st.v)+' il '+esc(fmtDate(st.d))+'</div>';
+    h+='</div>'});
+  h+='<div class="row"><button class="btn ghost sm" data-act="addEx">+ Esercizio</button><select id="exgrp" aria-label="Aggiungi dalla libreria" data-act-change="1"><option value="">Aggiungi dalla libreria…</option>'+Object.keys(EX_LIB).map(function(g){return '<optgroup label="'+esc(g)+'">'+EX_LIB[g].map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>'}).join('')+'</optgroup>'}).join('')+'</select></div>';
+  h+='<div class="card stack"><label class="f"><span class="l">Consigli generali</span><textarea rows="4" data-train="consigli">'+esc(Array.isArray(T0.consigli)?T0.consigli.join('\n'):(T0.consigli||''))+'</textarea></label><label class="f"><span class="l">Le tue note</span><textarea rows="3" data-train="note">'+esc(T0.note||'')+'</textarea></label></div>';
+  h+='<div id="trvol">'+trVolume()+'</div>';
+  /* carichi e progressi */
+  var names=trProgressNames(),keys=Object.keys(names);
+  h+='<div class="card stack"><h2 style="font-size:18px">Carichi e progressi</h2><div class="small muted">Scrivi il carico negli esercizi e registra la seduta: il carico viene salvato con la data di oggi e compare nel grafico.</div><div class="row"><button class="btn" data-act="logLoads">Registra i carichi di oggi</button></div>';
+  if(S.info.tlog)h+='<div class="msg ok">'+esc(S.info.tlog)+'</div>';
+  if(keys.length){
+    var cur=S.ui.tprog&&names[S.ui.tprog]?S.ui.tprog:keys[0];
+    h+='<label class="f"><span class="l">Esercizio</span><select id="tprog" data-bind="u.tprog">'+keys.map(function(k){return '<option value="'+esc(k)+'"'+(k===cur?' selected':'')+'>'+esc(k)+'</option>'}).join('')+'</select></label>';
+    var pts=names[cur].map(function(s){return {d:s.d,v:num(s.v)}}).sort(function(a,b){return a.d<b.d?-1:1});
+    var ch=lineChart(cur,pts,'kg',1);h+=ch?('<div class="chartbox">'+ch+'</div>'):'<div class="small muted">Servono almeno due registrazioni per vedere il grafico.</div>'}
+  h+='</div>';
+  h+=fineHtml()+photosHtml()+tplHtml();
+  h+='<div class="row"><button class="btn" data-act="trainPdf"'+(S.busy.tpdf?' disabled':'')+'>'+(S.busy.tpdf?'Creo il PDF…':'Scarica la scheda in PDF')+'</button></div>';
+  if(S.err.tpdf)h+='<div class="msg err">'+esc(S.err.tpdf)+'</div>';
+  if(S.info.tpdf)h+='<div class="msg ok">'+esc(S.info.tpdf)+'</div>';
+  return h+'</div>'}
+function normTDay(d,i,old){
+  var oldH={};(old||[]).forEach(function(od){(od.esercizi||[]).forEach(function(e){if(e.nome&&e.storico&&e.storico.length)oldH[e.nome.trim().toLowerCase()]=e.storico})});
+  return {nome:String(d.nome||('Giorno '+(i+1))),focus:String(d.focus||''),
+    esercizi:(Array.isArray(d.esercizi)?d.esercizi:[]).slice(0,14).map(function(e){var n=String(e.nome||'');return {nome:n,serie:String(e.serie==null?'':e.serie),rip:String(e.rip==null?'':e.rip),rec:String(e.rec||''),carico:String(e.carico||''),gr:String(e.gruppo||e.gr||exGroup(n)||''),video:String(e.video||''),note:String(e.note||''),storico:oldH[n.trim().toLowerCase()]||(Array.isArray(e.storico)?e.storico:[])}})}}
+var TR_SCHEMA='{"nome":"Giorno A","focus":"Gambe e glutei","esercizi":[{"nome":"Squat con bilanciere","gruppo":"Gambe","serie":"4","rip":"8-10","rec":"90 s","note":""}]}';
+async function runTrain(){
+  S.ui.confirmTrain=false;var T0=ensureTrain(),v=T0.valut,n=parseInt(v.giorni,10)||3;
+  var m=latestMeasure();
+  var prompt="Sei l'assistente di un personal trainer e prepari una BOZZA di scheda di allenamento che lui rivedrà. Sicurezza prima di tutto: rispetta in modo rigoroso infortuni, dolori e limiti, scegli progressioni prudenti per i principianti, non proporre carichi massimali e inserisci riscaldamento e mobilità. Adatta esercizi e attrezzi a luogo e attrezzatura disponibili. Usa nomi di esercizi italiani comuni e semplici (se possibile tra: "+Object.keys(EX_LIB).reduce(function(a,g){return a.concat(EX_LIB[g])},[]).slice(0,60).join(', ')+").\n\nValutazione e obiettivo:\n"+trText()+"\n\nScheda cliente (intervista):\n"+intText()+"\n\nUltima misurazione:\n"+measureText(m)+"\n\nIndicazioni del trainer: "+((S.ui.trainNotes||'').trim()||'nessuna')+"\n\nCrea "+n+" giorni di allenamento a settimana, ciascuno adatto a una seduta di circa "+(v.durata||'60 minuti')+" (di solito 5-8 esercizi), con un nome (Giorno A, B, ...) e un focus. Per ogni esercizio indica gruppo muscolare principale (uno tra: "+Object.keys(EX_LIB).join(', ')+"), serie, ripetizioni e recupero. Lascia vuoto il carico. Note brevi.\n\nRispondi solo con JSON:\n{\"riassunto\":\"2-3 frasi sulla logica della scheda\",\"days\":["+TR_SCHEMA+"],\"consigli\":[\"da 3 a 6 consigli pratici su progressione, recupero e sicurezza\"]}";
+  var r=await askJson('train',prompt,{tier:'complex'});
+  if(!r){render();return}
+  var ds=(Array.isArray(r.days)?r.days:[]).slice(0,7).map(function(d,i){return normTDay(d,i,T0.days)});
+  if(r._troncato&&ds.length>1)ds.pop();
+  if(!ds.length||!ds.some(function(d){return d.esercizi.length})){S.err.train="L'IA non ha restituito una scheda utilizzabile. Riprova.";render();return}
+  S.ui.trainBackup=T0.days.length?clone(T0):null;
+  T0.days=ds;T0.riassunto=String(r.riassunto||'');T0.consigli=Array.isArray(r.consigli)?r.consigli.map(String):[];T0.generatedAt=Date.now();
+  S.ui.tday=0;S.ui.trainChanges=[];S.info.train=r._troncato?('Scheda creata, ma la risposta si è interrotta: ci sono '+ds.length+' giorni. Aggiungi quelli mancanti o genera di nuovo.'):'Scheda creata. Controllala e modificala: si salva da sola.';
+  saveTrain(true);render()}
+async function reviseTrain(){
+  var ins=(S.ui.trainChange||'').trim(),T0=ensureTrain();if(!ins||!T0.days.length)return;
+  var cur=JSON.stringify({riassunto:T0.riassunto||'',days:T0.days.map(function(d,i){return {indice:i,nome:d.nome,focus:d.focus,esercizi:d.esercizi.map(function(e){return {nome:e.nome,serie:e.serie,rip:e.rip,rec:e.rec,note:e.note}})}}),consigli:T0.consigli||[]});
+  var prompt="Sei l'assistente di un personal trainer. Modifica la scheda di allenamento qui sotto SOLO come richiesto e lascia tutto il resto IDENTICO. Rispetta infortuni e limiti: "+trText().slice(0,3000)+"\n\nScheda attuale (JSON, indici dei giorni da 0):\n"+cur.slice(0,60000)+"\n\nRichiesta del trainer:\n"+ins+"\n\nRispondi solo con JSON: {\"giorni_modificati\":[{\"indice\":0,\"day\":"+TR_SCHEMA+"}],\"giorni_nuovi\":[],\"consigli\":null,\"riassunto\":null,\"modifiche\":[\"frase breve per ogni modifica\"]}. In \"giorni_modificati\" metti SOLO i giorni che cambiano, completi. In \"giorni_nuovi\" eventuali giorni da aggiungere in fondo (stesso formato di day). \"consigli\" e \"riassunto\": solo se li cambi, altrimenti null.";
+  var r=await askJson('trev',prompt,{});
+  if(!r){render();return}
+  var backup=clone(T0),changed=0;
+  (Array.isArray(r.giorni_modificati)?r.giorni_modificati:[]).forEach(function(g){var i=parseInt(g&&g.indice,10);if(!isFinite(i)||i<0||i>=T0.days.length||!g.day)return;var nd=normTDay(g.day,i,[T0.days[i]].concat(T0.days));if(!nd.esercizi.length)return;T0.days[i]=nd;changed++});
+  (Array.isArray(r.giorni_nuovi)?r.giorni_nuovi:[]).slice(0,3).forEach(function(g){if(T0.days.length>=7||!g)return;var nd=normTDay(g,T0.days.length,T0.days);if(nd.esercizi.length){T0.days.push(nd);changed++}});
+  if(Array.isArray(r.consigli)&&r.consigli.length){T0.consigli=r.consigli.map(String);changed++}
+  if(typeof r.riassunto==='string'&&r.riassunto.trim()){T0.riassunto=r.riassunto;changed++}
+  if(!changed){S.err.trev="L'IA non ha proposto modifiche applicabili. Prova a scrivere la richiesta in modo più preciso.";render();return}
+  S.ui.trainBackup=backup;S.ui.trainChanges=(Array.isArray(r.modifiche)?r.modifiche.map(String):['Modifiche applicate.']).slice(0,12);S.ui.trainChange='';saveTrain(true);render()}
+function undoTrain(){
+  if(!S.ui.trainBackup)return;S.train=S.ui.trainBackup;S.ui.trainBackup=null;S.ui.trainChanges=[];S.ui.tday=Math.min(S.ui.tday||0,Math.max(0,S.train.days.length-1));saveTrain(true);render()}
+function logLoads(){
+  var T0=ensureTrain(),d=today(),n=0;
+  T0.days.forEach(function(day){(day.esercizi||[]).forEach(function(e){var c=(e.carico||'').trim();if(!c)return;e.storico=(e.storico||[]).filter(function(s){return s.d!==d});e.storico.push({d:d,v:c});n++})});
+  S.info.tlog=n?((n===1?'Registrato 1 carico':'Registrati '+n+' carichi')+' con la data di oggi.'):'Scrivi prima almeno un carico negli esercizi.';
+  if(n)saveTrain(true);render()}
+function moreTrainClick(a,el){
+  var T0=S.train||ensureTrain(),di=Math.min(S.ui.tday||0,Math.max(0,T0.days.length-1));
+  switch(a){
+   case 'tday':S.ui.tday=parseInt(el.getAttribute('data-i'),10);S.ui.confirmTDay=null;render();return true;
+   case 'addTDay':T0.days.push(trEmptyDay(T0.days.length));S.ui.tday=T0.days.length-1;saveTrain();render();return true;
+   case 'blankTrain':T0.days=[trEmptyDay(0)];T0.consigli=[];S.ui.tday=0;saveTrain(true);render();return true;
+   case 'delTDayAsk':S.ui.confirmTDay=di;render();return true;
+   case 'delTDayNo':S.ui.confirmTDay=null;render();return true;
+   case 'delTDay':T0.days.splice(di,1);S.ui.confirmTDay=null;S.ui.tday=0;saveTrain(true);render();return true;
+   case 'addEx':T0.days[di].esercizi.push({nome:'',serie:'3',rip:'10',rec:'60 s',carico:'',note:'',gr:'',video:'',storico:[]});saveTrain();render();return true;
+   case 'delEx':T0.days[di].esercizi.splice(parseInt(el.getAttribute('data-e'),10),1);saveTrain();render();return true;
+   case 'trainAsk':S.ui.confirmTrain=true;render();return true;
+   case 'trainAskNo':S.ui.confirmTrain=false;render();return true;
+   case 'runTrain':runTrain();return true;
+   case 'reviseTrain':reviseTrain();return true;
+   case 'undoTrain':undoTrain();return true;
+   case 'logLoads':logLoads();return true;
+   case 'trainPdf':makeTrainPdf();return true;
+   case 'exVideo':{var ex=T0.days[di].esercizi[parseInt(el.getAttribute('data-e'),10)];if(ex){var vu=(ex.video||'').trim();if(/^https?:\/\//i.test(vu))window.open(vu,'_blank','noopener');else window.open('https://www.youtube.com/results?search_query='+encodeURIComponent((ex.nome||'')+' esecuzione corretta'),'_blank','noopener')}return true}
+   case 'saveTpl':saveTpl();return true;
+   case 'useTplAsk':S.ui.tplUse=el.getAttribute('data-id');S.ui.tplDel=null;render();return true;
+   case 'delTplAsk':S.ui.tplDel=el.getAttribute('data-id');S.ui.tplUse=null;render();return true;
+   case 'tplNo':S.ui.tplUse=null;S.ui.tplDel=null;render();return true;
+   case 'useTpl':useTpl(el.getAttribute('data-id'));return true;
+   case 'delTpl':appRoot().collection('tpl').doc(el.getAttribute('data-id')).delete().then(function(){S.ui.tplDel=null;render()});return true;
+   case 'pickPh':{var pf=document.getElementById('phfile');if(pf)pf.click();return true}
+   case 'viewPh':S.ui.phView=el.getAttribute('data-id');S.ui.phDel=null;render();return true;
+   case 'closePh':S.ui.phView=null;S.ui.phDel=null;render();return true;
+   case 'delPhAsk':S.ui.phDel=el.getAttribute('data-id');render();return true;
+   case 'phNo':S.ui.phDel=null;render();return true;
+   case 'delPh':{var pid=el.getAttribute('data-id');base().collection('photos').doc(pid).delete().then(function(){S.photos=S.photos.filter(function(p){return p.id!==pid});S.ui.phView=null;S.ui.phDel=null;render()});return true}}
+  return false}
+async function makeTrainPdf(){
+  S.busy.tpdf=true;S.err.tpdf=null;S.info.tpdf=null;render();
+  try{
+    await loadPdfLib();applyBrand();
+    var jsPDF=window.jspdf.jsPDF,doc=new jsPDF({unit:'mm',format:'a4'});
+    var M=16,CW=178,TOP=24,BOT=282,y=0,c=S.client,studio=S.studio,T0=ensureTrain(),v=T0.valut;
+    var ensure=function(h){if(y+h>BOT){doc.addPage();y=TOP}};
+    var setT=function(sz,st,col){doc.setFont('helvetica',st||'normal');doc.setFontSize(sz);col=col||INK;doc.setTextColor(col[0],col[1],col[2])};
+    var para=function(text,sz,col){sz=sz||10;setT(sz,'normal',col);doc.splitTextToSize(T(text),CW).forEach(function(ln){ensure(sz*0.5+1);doc.text(ln,M,y);y+=sz*0.5});y+=3};
+    var section=function(t){ensure(22);y+=4;setT(14,'bold',ACC);doc.text(T(t),M,y);y+=2.5;doc.setDrawColor(ACC[0],ACC[1],ACC[2]);doc.setLineWidth(0.5);doc.line(M,y,M+CW,y);y+=7};
+    var table=function(opts){opts.margin={top:TOP,left:M,right:M,bottom:20};opts.startY=y;opts.styles=Object.assign({font:'helvetica',fontSize:9,cellPadding:2.2,textColor:INK,lineColor:LN,lineWidth:0.2},opts.styles||{});opts.headStyles=Object.assign({fillColor:ACC,textColor:[255,255,255],fontStyle:'bold'},opts.headStyles||{});opts.alternateRowStyles={fillColor:[246,250,248]};doc.autoTable(opts);y=doc.lastAutoTable.finalY+6};
+    doc.setFillColor(ACC[0],ACC[1],ACC[2]);doc.rect(0,0,210,36,'F');brandLogo(doc);
+    setT(18,'bold',[255,255,255]);doc.text(T(studio.studio||'Scheda di allenamento'),M,16);
+    setT(9,'normal',[222,240,232]);doc.text(T([studio.pro,studio.contatto].filter(Boolean).join('  |  ')),M,23);
+    setT(12,'bold',[255,255,255]);doc.text(T('Scheda di allenamento - '+(c.name||'')),M,31);
+    y=46;
+    var rows=[['Obiettivo',v.obiettivo],['Livello',v.livello],['Allenamenti a settimana',v.giorni],['Durata di una seduta',v.durata],['Dove ti alleni',v.luogo],['Limiti e infortuni',v.limiti]].filter(function(r){return r[1]}).map(function(r){return [T(r[0]),T(r[1])]});
+    if(rows.length){section('Il tuo punto di partenza');table({body:rows,theme:'grid',columnStyles:{0:{cellWidth:48,fontStyle:'bold',textColor:ACC,fillColor:[246,250,248]}},alternateRowStyles:{fillColor:[255,255,255]}})}
+    if(T0.riassunto)para(T0.riassunto,10);
+    T0.days.forEach(function(d){
+      ensure(34);setT(12,'bold');doc.text(T(d.nome+(d.focus?' - '+d.focus:'')),M,y);y+=4;
+      var body=(d.esercizi||[]).filter(function(e){return e.nome}).map(function(e,i){return [String(i+1),T(e.nome+(e.note?'\n'+e.note:'')),T(e.serie),T(e.rip),T(e.rec),T(e.carico)]});
+      if(body.length)table({head:[['','Esercizio','Serie','Rip.','Recupero','Carico']],body:body,theme:'grid',columnStyles:{0:{cellWidth:8},2:{cellWidth:14,halign:'center'},3:{cellWidth:18,halign:'center'},4:{cellWidth:24,halign:'center'},5:{cellWidth:22,halign:'center'}}});
+      else para('Nessun esercizio inserito.',9.5,MUT)});
+    var cons=Array.isArray(T0.consigli)?T0.consigli:(T0.consigli?[T0.consigli]:[]);
+    if(cons.length){section('Consigli');cons.forEach(function(t){para('- '+t,10)})}
+    if(T0.note){section('Note');para(T0.note,10)}
+    var n=doc.getNumberOfPages();
+    for(var pg=1;pg<=n;pg++){doc.setPage(pg);
+      if(pg>1){setT(8.5,'normal',MUT);doc.text(T((studio.studio||'Scheda di allenamento')+'  |  '+(c.name||'')),M,12);doc.setDrawColor(LN[0],LN[1],LN[2]);doc.setLineWidth(0.3);doc.line(M,15,M+CW,15)}
+      doc.setDrawColor(LN[0],LN[1],LN[2]);doc.setLineWidth(0.3);doc.line(M,288,M+CW,288);
+      setT(7.5,'normal',MUT);doc.text('Scheda indicativa a cura del professionista. In caso di dolore o malessere interrompi e consulta il medico.',M,292.5);
+      doc.text('Pagina '+pg+' di '+n,M+CW,292.5,{align:'right'})}
+    var fname='scheda-'+String(c.name||'cliente').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+today()+'.pdf';
+    var buf=doc.output('arraybuffer');if(!S.downloads)throw {code:'nodl'};
+    S.busy.tpdf=false;
+    try{await S.downloads.save({filename:fname,data:buf});S.info.tpdf='PDF creato.'}
+    catch(er){if(er&&er.code==='declined'){S.info.tpdf=null}else S.err.tpdf='Il PDF è pronto ma il salvataggio non è riuscito. Riprova.'}
+  }catch(e){S.err.tpdf=(e&&e.code==='nodl')?'Il download non è disponibile in questa vista.':'Non sono riuscita a creare il PDF. Controlla la connessione e riprova.'}
+  S.busy.tpdf=false;render()}
+
+/* ================= Guida illustrata: come si misurano pliche e circonferenze ================= */
+var GUIDE_PL=[
+ ['Pettorale','d',56,70,'Plica diagonale a metà tra la piega ascellare anteriore e il capezzolo (uomo). Nella donna, a un terzo della distanza dalla piega ascellare.'],
+ ['Ascellare media','v',45,92,'Plica verticale sulla linea ascellare media (al centro del fianco), all\'altezza della punta dello sterno.'],
+ ['Bicipitale','v',31,82,'Plica verticale sul davanti del braccio, a metà tra spalla (acromion) e gomito, sopra il ventre del bicipite. Braccio rilassato.'],
+ ['Addominale','v',62,112,'Plica verticale 2 cm a lato dell\'ombelico, alla sua altezza. Chiedi di respirare normalmente.'],
+ ['Sovrailiaca','d',51,127,'Plica diagonale appena sopra la cresta iliaca (l\'osso del fianco), sulla linea che scende dall\'ascella davanti.'],
+ ['Coscia','v',60,185,'Plica verticale sulla faccia anteriore, a metà tra la piega dell\'inguine e il bordo alto della rotula. Peso sull\'altra gamba, coscia rilassata.'],
+ ['Polpaccio','v',56,236,'Plica verticale sul lato interno del polpaccio, nel punto di circonferenza massima. Piede appoggiato su una sedia, ginocchio a 90°.']];
+var GUIDE_PLB=[
+ ['Tricipitale','v',31,82,'Plica verticale sul retro del braccio, a metà tra spalla (acromion) e gomito (olecrano). Braccio rilassato lungo il fianco.'],
+ ['Sottoscapolare','d',56,72,'Plica diagonale (circa 45°) 1-2 cm sotto l\'angolo inferiore della scapola, seguendo la linea naturale della pelle.']];
+var GUIDE_CI=[
+ ['Collo',36,'Appena sotto il pomo d\'Adamo, testa dritta, sguardo avanti.'],
+ ['Spalle',49,'Giro massimo intorno ai deltoidi, braccia rilassate lungo i fianchi.'],
+ ['Torace',66,'All\'altezza dei capezzoli, a fine espirazione normale, braccia lungo i fianchi.'],
+ ['Braccio',82,'A metà tra spalla e gomito, braccio rilassato. Indica sempre se rilassato o contratto, e usa sempre lo stesso.'],
+ ['Vita',100,'Nel punto più stretto tra l\'ultima costa e l\'osso del fianco, a fine espirazione.'],
+ ['Addome',112,'All\'altezza dell\'ombelico, senza trattenere il respiro.'],
+ ['Fianchi',142,'Nel punto di massima sporgenza dei glutei, piedi uniti.'],
+ ['Coscia',178,'A metà tra la piega dell\'inguine e il bordo alto della rotula, peso su entrambe le gambe.'],
+ ['Polpaccio',236,'Nel punto di circonferenza massima, peso su entrambe le gambe.']];
+function guideBody(inner){
+  return '<svg class="gfig" viewBox="0 0 140 275" width="100%" role="img" aria-hidden="true"><g fill="var(--accent-soft,#E7F2EC)" stroke="var(--muted,#58706A)" stroke-width="1.2" stroke-linejoin="round"><circle cx="70" cy="20" r="13"/><rect x="63" y="32" width="14" height="9" rx="3"/><path d="M44 42 Q70 37 96 42 L100 62 L94 120 Q92 135 86 150 L54 150 Q48 135 46 120 L40 62 Z"/><path d="M44 44 L34 50 L24 120 L19 152 L28 154 L36 124 L46 80 Z"/><path d="M96 44 L106 50 L116 120 L121 152 L112 154 L104 124 L94 80 Z"/><path d="M54 150 L70 150 L68 212 L66 262 L52 262 L52 212 Z"/><path d="M70 150 L86 150 L88 212 L88 262 L74 262 L72 212 Z"/></g>'+inner+'</svg>'}
+function guideDot(n,x,y,dir){
+  var ln=dir==='v'?'<line x1="'+x+'" y1="'+(y-8)+'" x2="'+x+'" y2="'+(y+8)+'"/>':dir==='d'?'<line x1="'+(x-7)+'" y1="'+(y+7)+'" x2="'+(x+7)+'" y2="'+(y-7)+'"/>':'';
+  return '<g stroke="var(--accent,#1B6B52)" stroke-width="2" stroke-linecap="round">'+ln+'</g><circle cx="'+x+'" cy="'+y+'" r="6.5" fill="var(--accent,#1B6B52)"/><text x="'+x+'" y="'+(y+3.5)+'" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="sans-serif">'+n+'</text>'}
+function guideBand(n,y){
+  return '<line x1="14" y1="'+y+'" x2="126" y2="'+y+'" stroke="var(--accent,#1B6B52)" stroke-width="1.6" stroke-dasharray="4 3"/><circle cx="10" cy="'+y+'" r="6.5" fill="var(--accent,#1B6B52)"/><text x="10" y="'+(y+3.5)+'" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="sans-serif">'+n+'</text>'}
+function measureGuide(kind){
+  var h='<div class="card stack guide"><div class="row" style="justify-content:space-between"><b style="font-family:var(--f-display);font-size:17px">'+(kind==='pl'?'Come si misurano le pliche':'Come si misurano le circonferenze')+'</b><button class="btn ghost sm" data-act="guide" data-g="">Chiudi</button></div>';
+  h+='<div class="msg"><b>Per avere sempre lo stesso punto:</b> misura sempre il lato destro, alla stessa ora (meglio al mattino), con lo stesso strumento e la stessa persona. Segna il punto con una matita dermografica o scrivi a che altezza da terra si trova.</div>';
+  if(kind==='pl'){
+    h+='<ul class="gl"><li>Pizzica con pollice e indice pelle e grasso sottocutaneo, <b>senza il muscolo</b>.</li><li>Applica la pinza 1 cm accanto alle dita, perpendicolare alla plica, e leggi dopo circa 2 secondi.</li><li>Fai 2-3 misure per punto e scrivi la media. Aspetta qualche secondo tra una e l\'altra.</li></ul>';
+    h+='<div class="gfigs"><div><div class="small muted" style="text-align:center">Davanti</div>'+guideBody(GUIDE_PL.map(function(s,i){return guideDot(i+1,s[2],s[3],s[1])}).join(''))+'</div><div><div class="small muted" style="text-align:center">Dietro</div>'+guideBody(GUIDE_PLB.map(function(s,i){return guideDot(i+1+GUIDE_PL.length,s[2],s[3],s[1])}).join(''))+'</div></div>';
+    h+='<div class="small muted">Il trattino accanto al numero indica la direzione della plica: verticale o diagonale.</div><ol class="gl" style="list-style:none;padding:0">'+GUIDE_PL.concat(GUIDE_PLB).map(function(s,i){return '<li><b>'+(i+1)+'. '+esc(s[0])+'.</b> '+esc(s[4])+'</li>'}).join('')+'</ol>'}
+  else{
+    h+='<ul class="gl"><li>Usa un metro flessibile non elastico, teso ma senza schiacciare la pelle.</li><li>Tienilo parallelo al pavimento, salvo dove indicato, e leggi a fine espirazione normale.</li><li>Misura su pelle o su tessuto sottile, in piedi e rilassato.</li></ul>';
+    h+='<div class="gfigs"><div style="max-width:220px;margin:0 auto">'+guideBody(GUIDE_CI.map(function(s,i){return guideBand(i+1,s[1])}).join(''))+'</div></div>';
+    h+='<ol class="gl" style="list-style:none;padding:0">'+GUIDE_CI.map(function(s,i){return '<li><b>'+(i+1)+'. '+esc(s[0])+'.</b> '+esc(s[2])+'</li>'}).join('')+'</ol>'}
+  h+='<div class="small muted">I disegni sono schematici. Per le foto vere dei punti nel tuo studio, fai una foto per ciascun punto e allegala al cliente.</div></div>';
+  return h}
+function guideBtn(kind,label){return '<button class="btn ghost sm" data-act="guide" data-g="'+kind+'">'+esc(label)+'</button>'}
+
+/* ================= Gruppi muscolari, programmi salvati, foto, questionario, colori e logo ================= */
+var PALETTE={verde:[27,107,82],blu:[31,86,150],viola:[96,64,150],arancio:[190,94,30],grafite:[52,64,72]};
+var PALETTE_NAMES=[['verde','Verde'],['blu','Blu'],['viola','Viola'],['arancio','Arancio'],['grafite','Grafite']];
+function applyBrand(){var p=PALETTE[(S.studio&&S.studio.colore)||'verde']||PALETTE.verde;ACC=p.slice();SOFT=p.map(function(v){return Math.round(v+(255-v)*0.9)})}
+function brandLogo(doc){
+  var s=S.studio;if(!s||!s.logo)return;
+  try{var lh=20,lw=Math.min(46,lh*(s.logoW||1)/(s.logoH||1));lh=lw*(s.logoH||1)/(s.logoW||1);
+    doc.setFillColor(255,255,255);doc.roundedRect(210-16-lw-4,5,lw+8,lh+6,2,2,'F');
+    doc.addImage(s.logo,/^data:image\/png/.test(s.logo)?'PNG':'JPEG',210-16-lw,8,lw,lh)}catch(e){}}
+function imgToData(file,max,type,q){return new Promise(function(res,rej){var u=URL.createObjectURL(file),im=new Image();
+  im.onload=function(){var s=Math.min(1,max/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*s)),h=Math.max(1,Math.round(im.height*s)),c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');
+    if(type==='image/jpeg'){x.fillStyle='#fff';x.fillRect(0,0,w,h)}x.drawImage(im,0,0,w,h);URL.revokeObjectURL(u);res({data:c.toDataURL(type,q),w:w,h:h})};
+  im.onerror=function(){URL.revokeObjectURL(u);rej(new Error('img'))};im.src=u})}
+async function setLogo(f){
+  S.err.logo=null;
+  try{var r=await imgToData(f,360,'image/png');if(r.data.length>150000)r=await imgToData(f,300,'image/jpeg',0.8);
+    S.studio.logo=r.data;S.studio.logoW=r.w;S.studio.logoH=r.h;saveStudio()}
+  catch(e){S.err.logo='Non riesco a leggere questa immagine. Usa un file PNG o JPG.'}
+  render()}
+function brandCard(){
+  var s=S.studio,h='<div class="row" style="align-items:flex-end"><label class="f" style="flex:1;min-width:130px"><span class="l">Colore dei PDF</span><select id="s-col" data-bind="s.colore">'+PALETTE_NAMES.map(function(p){return '<option value="'+p[0]+'"'+((s.colore||'verde')===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select></label></div>';
+  h+='<input type="file" id="logofile" hidden accept="image/png,image/jpeg,image/webp"><div class="row">';
+  if(s.logo)h+='<img src="'+s.logo+'" alt="Logo" style="height:44px;max-width:120px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px;background:#fff">';
+  h+='<button class="btn ghost sm" data-act="pickLogo">'+(s.logo?'Cambia logo':'Carica il logo')+'</button>'+(s.logo?'<button class="btn ghost sm" data-act="delLogo">Rimuovi logo</button>':'')+'</div>';
+  if(S.err.logo)h+='<div class="msg err">'+esc(S.err.logo)+'</div>';
+  return h}
+/* gruppi muscolari */
+function exGroup(name){var n=String(name||'').trim().toLowerCase();if(!n)return '';var g=Object.keys(EX_LIB);for(var i=0;i<g.length;i++){if(EX_LIB[g[i]].some(function(x){return x.toLowerCase()===n}))return g[i]}return ''}
+function grSelect(pre,val){
+  return '<label class="f"><span class="l">Gruppo muscolare</span><select data-train="'+pre+'.gr"><option value="">—</option>'+Object.keys(EX_LIB).map(function(g){return '<option value="'+esc(g)+'"'+(g===val?' selected':'')+'>'+esc(g)+'</option>'}).join('')+'</select></label>'}
+function trVolume(){
+  var T0=ensureTrain(),v={},mx=0;
+  T0.days.forEach(function(d){(d.esercizi||[]).forEach(function(e){var n=parseInt(e.serie,10)||0;if(!n||!(e.nome||'').trim())return;var g=e.gr||exGroup(e.nome)||'Non assegnato';v[g]=(v[g]||0)+n;if(v[g]>mx)mx=v[g]})});
+  var ks=Object.keys(v).sort(function(a,b){return v[b]-v[a]});
+  if(!ks.length)return '';
+  return '<div class="card stack"><h2 style="font-size:18px">Volume settimanale</h2><div class="small muted">Serie totali per gruppo muscolare nella settimana (ogni giorno della scheda conta una volta).</div>'+
+    ks.map(function(g){return '<div style="display:grid;grid-template-columns:110px 1fr 36px;gap:8px;align-items:center;font-size:13px"><span>'+esc(g)+'</span><span style="background:var(--line);border-radius:4px;height:10px;display:block"><span style="display:block;height:10px;border-radius:4px;background:var(--accent);width:'+Math.round(v[g]/mx*100)+'%"></span></span><b style="text-align:right">'+v[g]+'</b></div>'}).join('')+
+    (v['Non assegnato']?'<div class="small muted">Per gli esercizi «Non assegnato» scegli il gruppo muscolare nell\'esercizio.</div>':'')+'</div>'}
+/* programmi salvati */
+function tplHtml(){
+  var T0=ensureTrain(),h='<div class="card stack"><h2 style="font-size:18px">Programmi salvati</h2><div class="small muted">Salva questa scheda come modello e riusala su altri clienti. Carichi e storico non vengono copiati.</div>';
+  if(T0.days.length)h+='<div class="row"><input type="text" id="tpl-name" data-bind="u.tplName" placeholder="Nome del programma" value="'+esc(S.ui.tplName||'')+'" style="flex:1;min-width:140px"><button class="btn sm" data-act="saveTpl">Salva come programma</button></div>';
+  if(S.err.tpl)h+='<div class="msg err">'+esc(S.err.tpl)+'</div>';
+  if(S.info.tpl)h+='<div class="msg ok">'+esc(S.info.tpl)+'</div>';
+  var l=(S.tpl||[]).slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0)});
+  if(!l.length)h+='<div class="small muted">Nessun programma salvato.</div>';
+  l.forEach(function(t){
+    h+='<div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:8px"><div><b>'+esc(t.name||'Programma')+'</b><div class="small muted">'+((t.days||[]).length)+' giorni</div></div><div class="row">';
+    if(S.ui.tplUse===t.id)h+='<button class="btn ai sm" data-act="useTpl" data-id="'+esc(t.id)+'">'+(T0.days.length?'Sì, sostituisci la scheda':'Usa')+'</button><button class="btn ghost sm" data-act="tplNo">Annulla</button>';
+    else if(S.ui.tplDel===t.id)h+='<button class="btn danger on sm" data-act="delTpl" data-id="'+esc(t.id)+'">Elimina</button><button class="btn ghost sm" data-act="tplNo">Annulla</button>';
+    else h+='<button class="btn ghost sm" data-act="useTplAsk" data-id="'+esc(t.id)+'">Usa</button><button class="btn ghost sm" data-act="delTplAsk" data-id="'+esc(t.id)+'">Elimina</button>';
+    h+='</div></div>'});
+  return h+'</div>'}
+async function saveTpl(){
+  S.err.tpl=null;S.info.tpl=null;var T0=ensureTrain(),name=(S.ui.tplName||'').trim();
+  if(!T0.days.length)return;if(!name){S.err.tpl='Scrivi un nome per il programma.';return render()}
+  var id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  var days=clone(T0.days).map(function(d){d.esercizi=(d.esercizi||[]).map(function(e){e.carico='';e.storico=[];return e});return d});
+  var o={name:name,days:days,riassunto:T0.riassunto||'',consigli:T0.consigli||[],createdAt:Date.now()};
+  try{await appRoot().collection('tpl').doc(id).set(o);S.info.tpl='Programma salvato.';S.ui.tplName=''}catch(e){S.err.tpl='Non sono riuscita a salvare il programma. Riprova.'}
+  render()}
+function useTpl(id){
+  var t=(S.tpl||[]).filter(function(x){return x.id===id})[0];if(!t)return;var T0=ensureTrain();
+  S.ui.trainBackup=T0.days.length?clone(T0):null;
+  T0.days=clone(t.days||[]).map(function(d,i){return normTDay(d,i,[])});T0.riassunto=t.riassunto||'';T0.consigli=clone(t.consigli||[]);
+  S.ui.tday=0;S.ui.tplUse=null;S.ui.trainChanges=[];S.info.train='Programma «'+(t.name||'')+'» applicato. Adattalo a questo cliente.';saveTrain(true);render()}
+/* foto dei progressi */
+var PH_LABELS=['Fronte','Lato','Retro','Altro'];
+async function addPhotos(list){
+  S.err.ph=null;var b=base(),room=24-(S.photos||[]).length;
+  if(room<=0){S.err.ph='Hai raggiunto il limite di 24 foto per cliente. Elimina quelle vecchie.';return render()}
+  var n=0;
+  for(var i=0;i<list.length&&n<room;i++){
+    try{var r=await imgToData(list[i],900,'image/jpeg',0.65);
+      var o={date:today(),label:S.ui.phLabel||'Fronte',data:r.data,createdAt:Date.now()+i},id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      await b.collection('photos').doc(id).set(o);o.id=id;S.photos.push(o);n++}
+    catch(e){S.err.ph='Non riesco a leggere una delle foto. Prova con un JPG o PNG.'}}
+  render()}
+function photosHtml(){
+  var ph=(S.photos||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))||(a.createdAt||0)-(b.createdAt||0)});
+  var h='<div class="card stack"><h2 style="font-size:18px">Foto dei progressi</h2><div class="small muted">Servono il consenso del cliente per le immagini corporee e uno sfondo e una posa sempre uguali. Le foto sono ridotte per risparmiare spazio (massimo 24 per cliente).</div>';
+  h+='<input type="file" id="phfile" multiple hidden accept="image/*"><div class="row"><select id="phlabel" data-bind="u.phLabel" aria-label="Posa">'+PH_LABELS.map(function(l){return '<option'+((S.ui.phLabel||'Fronte')===l?' selected':'')+'>'+l+'</option>'}).join('')+'</select><button class="btn ghost sm" data-act="pickPh">Aggiungi foto</button></div>';
+  if(S.err.ph)h+='<div class="msg err">'+esc(S.err.ph)+'</div>';
+  if(S.ui.phView){var v=ph.filter(function(p){return p.id===S.ui.phView})[0];if(v)h+='<div class="stack"><img src="'+v.data+'" alt="Foto" style="width:100%;border-radius:10px"><div class="row" style="justify-content:space-between"><span class="small">'+esc(v.label)+' · '+esc(fmtDate(v.date))+'</span><span class="row">'+(S.ui.phDel===v.id?'<button class="btn danger on sm" data-act="delPh" data-id="'+esc(v.id)+'">Elimina la foto</button><button class="btn ghost sm" data-act="phNo">Annulla</button>':'<button class="btn danger sm" data-act="delPhAsk" data-id="'+esc(v.id)+'">Elimina</button>')+'<button class="btn ghost sm" data-act="closePh">Chiudi</button></span></div></div>'}
+  if(ph.length){
+    h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">'+ph.map(function(p){return '<button data-act="viewPh" data-id="'+esc(p.id)+'" style="padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:none;text-align:left"><img src="'+p.data+'" alt="'+esc(p.label)+'" style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block"><span class="small" style="display:block;padding:3px 5px">'+esc(p.label)+' · '+esc(shortDate(p.date))+'</span></button>'}).join('')+'</div>';
+    var lab=S.ui.phLabel||'Fronte',same=ph.filter(function(p){return p.label===lab});
+    if(same.length>=2){var a=same[0],z=same[same.length-1];h+='<div class="small muted">Confronto «'+esc(lab)+'»: prima e ultima</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><img src="'+a.data+'" alt="Prima" style="width:100%;border-radius:8px"><div class="small" style="text-align:center">'+esc(fmtDate(a.date))+'</div></div><div><img src="'+z.data+'" alt="Ultima" style="width:100%;border-radius:8px"><div class="small" style="text-align:center">'+esc(fmtDate(z.date))+'</div></div></div>'}}
+  return h+'</div>'}
+/* questionario di fine programma */
+function fineIndex(){
+  var f=ensureTrain().fine||{},k=['soddisf','sosten','energia','aderenza'].map(function(x){return parseInt(f[x],10)}).filter(function(x){return x>=1});
+  if(k.length<4)return 'Compila le quattro valutazioni per vedere l\'indice.';
+  var avg=k.reduce(function(a,b){return a+b},0)/k.length;return 'Indice di sostenibilità: '+Math.round(avg/5*100)+'%'}
+function fineHtml(){
+  var f=ensureTrain().fine||{},sc=['','1','2','3','4','5'];
+  var sel=function(k,l){return '<label class="f"><span class="l">'+esc(l)+'</span><select data-train="fine.'+k+'">'+sc.map(function(o){return '<option value="'+o+'"'+(String(f[k]||'')===o?' selected':'')+'>'+(o||'Scegli')+'</option>'}).join('')+'</select></label>'};
+  return '<details class="card" data-fine="1"'+(S.ui.fineOpen?' open':'')+'><summary style="font-family:var(--f-display);font-weight:600;font-size:18px;cursor:pointer">Questionario di fine programma</summary><div class="stack" style="margin-top:10px"><div class="small muted">Da compilare con il cliente a fine ciclo. Voti da 1 (per nulla) a 5 (moltissimo).</div><div class="grid w2">'+
+    '<label class="f"><span class="l">Data</span><input type="date" data-train="fine.data" value="'+esc(f.data||'')+'"></label>'+sel('soddisf','Soddisfazione per i risultati')+sel('sosten','Sostenibilità della scheda')+sel('energia','Energia e recupero')+sel('aderenza','Aderenza al programma')+'</div>'+
+    '<label class="f"><span class="l">Difficoltà incontrate</span><textarea rows="2" data-train="fine.difficolta">'+esc(f.difficolta||'')+'</textarea></label><label class="f"><span class="l">Note e prossimi obiettivi</span><textarea rows="2" data-train="fine.note">'+esc(f.note||'')+'</textarea></label><div class="msg ok" id="fineidx">'+esc(fineIndex())+'</div></div></details>'}
+
 /* ---------- Eventi ---------- */
-function bindRoot(ch){return ch==='c'?S.client:ch==='d'?S.draft:ch==='u'?S.ui:ch==='p'?ensurePlan().settings:ch==='a'?S.ui.apptForm:ch==='l'?S.ui.ledForm:ch==='r'?S.ui.rep:ch==='s'?S.studio:null}
+function bindRoot(ch){return ch==='c'?S.client:ch==='d'?S.draft:ch==='u'?S.ui:ch==='p'?ensurePlan().settings:ch==='a'?S.ui.apptForm:ch==='l'?S.ui.ledForm:ch==='r'?S.ui.rep:ch==='s'?S.studio:ch==='t'?ensureTrain().valut:null}
 function onInput(e){
   var t=e.target;
   if(t.id==='q'){S.ui.q=t.value;var cl=$('#clist');if(cl)cl.innerHTML=clientList();return}
@@ -1748,6 +2136,17 @@ function onInput(e){
   var lab=t.getAttribute&&t.getAttribute('data-lab');
   if(lab){var L=S.labs.filter(function(x){return x.id===lab})[0];if(!L)return;L[t.getAttribute('data-f')]=t.value;saveLabLater(L);
     if(t.getAttribute('data-f')==='titolo'){var sm=t.closest('details').querySelector('summary span');if(sm)sm.textContent=t.value||'Esame'}return}
+  var tr=t.getAttribute&&t.getAttribute('data-train');
+  if(tr&&S.train){
+    var tp=tr.split('.').map(function(x){return /^\d+$/.test(x)?parseInt(x,10):x});
+    var tr2=S.train;for(var i3=0;i3<tp.length-1;i3++){tr2=tr2[tp[i3]];if(tr2==null)return}
+    var tl=tp[tp.length-1];
+    if(tl==='consigli'){tr2[tl]=t.value.split('\n').map(function(s){return s.trim()}).filter(Boolean)}else tr2[tl]=t.value;
+    if(tp[0]==='days'&&tp[2]==='nome'&&tp.length===3){var ch2=$('.chip.on');if(ch2)ch2.textContent=t.value||'Giorno'}
+    if(tl==='nome'&&tp.length===5){var g0=exGroup(t.value);if(g0&&!tr2.gr){tr2.gr=g0;var gs=document.querySelector('select[data-train="'+tr.replace(/nome$/,'gr')+'"]');if(gs)gs.value=g0}}
+    var tv=$('#trvol');if(tv&&tp[0]==='days')tv.innerHTML=trVolume();
+    if(tp[0]==='fine'){var fi=$('#fineidx');if(fi)fi.textContent=fineIndex()}
+    saveTrain();return}
   var pl=t.getAttribute&&t.getAttribute('data-plan');
   if(pl&&S.plan){
     var pp=pl.split('.').map(function(x){return /^\d+$/.test(x)?parseInt(x,10):x});
@@ -1814,9 +2213,12 @@ async function onClick(e){
 function onChange(e){
   var t=e.target;
   if(t.id==='mfile'&&t.files&&t.files.length){var l=Array.prototype.slice.call(t.files);t.value='';runMeasureAI(l)}
+  else if(t.id==='logofile'&&t.files&&t.files[0]){var lg=t.files[0];t.value='';setLogo(lg)}
+  else if(t.id==='phfile'&&t.files&&t.files.length){var l5=Array.prototype.slice.call(t.files);t.value='';addPhotos(l5)}
   else if(t.id==='pfile'&&t.files&&t.files.length){var l4=Array.prototype.slice.call(t.files);t.value='';attachPlanFiles(l4)}
   else if(t.id==='ifile'&&t.files&&t.files.length){var l3=Array.prototype.slice.call(t.files);t.value='';runInterview(l3)}
   else if(t.id==='lfile'&&t.files&&t.files.length){var l2=Array.prototype.slice.call(t.files);t.value='';runLabAI(l2)}
+  else if(t.id==='exgrp'&&t.value){var T1=ensureTrain(),dd=T1.days[Math.min(S.ui.tday||0,T1.days.length-1)];if(dd){dd.esercizi.push({nome:t.value,serie:'3',rip:'10',rec:'60 s',carico:'',note:'',gr:exGroup(t.value),video:'',storico:[]});saveTrain();render()}}
   else if(t.tagName==='SELECT'&&t.getAttribute('data-bind')){onInput(e)}}
 
 /* ---------- Avvio ---------- */
