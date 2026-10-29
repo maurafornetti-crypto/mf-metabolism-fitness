@@ -1121,7 +1121,7 @@ function bodyTriangle(){
   xy.forEach(function(q,i){var last=i===xy.length-1;s+='<circle class="'+(last?'pe':'pt')+'" cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="'+(last?5:3.5)+'"/>'});
   var q0=xy[xy.length-1];s+='<text x="'+(q0[0]+8).toFixed(1)+'" y="'+(q0[1]-6).toFixed(1)+'" style="fill:var(--ink)">'+esc(shortDate(pts[pts.length-1].d))+'</text></svg>';
   var l=pts[pts.length-1].c;
-  s+='<div class="small muted">Ogni punto è una visita. Le tre quantità della BIA (acqua, grasso, muscolo) sono riportate in proporzione tra loro, a somma 100. Ultima visita: acqua '+fmt(l.r,1)+'%, grasso '+fmt(l.f,1)+'%, muscolo '+fmt(l.m,1)+'%.</div></div>';
+  s+='<div class="small muted">Ogni punto è una visita. Le tre quantità della BIA (acqua, grasso, muscolo) sono riportate in proporzione tra loro, a somma 100. Ultima visita: acqua '+fmt(l.r,1)+'%, grasso '+fmt(l.f,1)+'%, muscolo '+fmt(l.m,1)+'%.<br><b>Come leggerlo.</b> Più il punto sale verso l\'alto, più peso di muscolo; verso il basso a sinistra, più grasso; verso il basso a destra, più acqua. Un percorso che si sposta verso il vertice Muscolo, restando lontano da Grasso, indica una composizione che migliora. L\'acqua dipende anche da idratazione e ritenzione: guarda l\'andamento su più visite, non un singolo punto.</div></div>';
   return s}
 
 /* ---------- Esami e documenti ---------- */
@@ -2215,7 +2215,18 @@ function pctChart(k,title,unit,dec,getv){
   pts.forEach(function(p,i){var last=i===pts.length-1;s+='<circle class="'+(last?'pe':'pt')+'" cx="'+X(p.y).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="'+(last?4.5:3.5)+'"/>'});
   s+='</svg>';
   var lp=pts[pts.length-1],pz=normCdf(cdcZ(lp.v,cdcLMS(k,sx,lp.y*12)))*100;
-  return '<div class="card"><div class="row" style="justify-content:space-between;align-items:baseline"><b style="font-family:var(--f-display)">'+esc(title)+'</b><span class="mono small muted">ultima: '+fmt(lp.v,dec)+' '+unit+' · '+pctTxt(pz)+' percentile</span></div>'+s+'<div class="small muted">Asse orizzontale: età in anni. Linee: percentili CDC 2000 (3°, 10°, 25°, 50°, 75°, 90°, 97°).'+(k==='bmi'?' Ultima misura: '+esc(bmiClass(pz))+'.':'')+'</div></div>'}
+  return '<div class="card"><div class="row" style="justify-content:space-between;align-items:baseline"><b style="font-family:var(--f-display)">'+esc(title)+'</b><span class="mono small muted">ultima: '+fmt(lp.v,dec)+' '+unit+' · '+pctTxt(pz)+' percentile</span></div>'+s+'<div class="small muted">Asse orizzontale: età in anni. Linee: percentili CDC 2000 (3°, 10°, 25°, 50°, 75°, 90°, 97°).</div>'+pctRead(k,pts,sx,pz)+'</div>'}
+function pctRead(k,pts,sx,pz){
+  var q=function(x){return Math.max(1,Math.min(99,Math.round(x)))};
+  var zona=pz<3?'sotto il 3°, cioè sotto la fascia abituale: da valutare':pz>97?'sopra il 97°, cioè sopra la fascia abituale: da valutare':'dentro la fascia abituale (tra il 3° e il 97°)';
+  var t='<p style="margin:8px 0 0"><b>Come leggerlo.</b> Il percentile dice come si colloca rispetto ai coetanei dello stesso sesso: '+pctTxt(pz)+' significa che circa '+q(pz)+' su 100 hanno un valore più basso. La linea P50 è la mediana. Qui il valore è '+zona+'.';
+  if(k==='bmi')t+=' Per l\'IMC: '+bmiClass(pz)+' (sotto il 5° sottopeso, 5°-85° nella norma, 85°-95° sovrappeso, dal 95° obesità).';
+  t+='</p>';
+  if(pts.length>1){
+    var f=pts[0],p0=normCdf(cdcZ(f.v,cdcLMS(k,sx,f.y*12)))*100,d=pz-p0;
+    t+='<p style="margin:6px 0 0"><b>Andamento.</b> '+(Math.abs(d)<10?'Dalla prima misura il percentile è stabile ('+pctTxt(p0)+' → '+pctTxt(pz)+'): segue la sua curva di crescita.':'Dalla prima misura il percentile è '+(d>0?'salito':'sceso')+' da '+pctTxt(p0)+' a '+pctTxt(pz)+'. Se attraversa due o più linee principali in poco tempo conviene approfondire.')+'</p>'}
+  t+='<p style="margin:6px 0 0">Conta più la direzione nel tempo del singolo valore. Sono riferimenti statistici, non una diagnosi: li interpreta il professionista insieme a storia, sviluppo puberale e familiarità.</p>';
+  return '<div class="small muted">'+t+'</div>'}
 function pctSection(){
   if(!isMinor())return '';
   if(!sexOf())return '<div class="card flat"><b>Percentili di crescita</b><p class="muted" style="margin:6px 0 0">Indica il sesso nella scheda per vedere i percentili.</p></div>';
