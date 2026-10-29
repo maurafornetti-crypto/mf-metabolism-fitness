@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>MF nutrition</title>
+<title>MF metabolism &amp; fitness</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -759,14 +759,14 @@ function labsText(){
 /* ---------- Render principale ---------- */
 function render(){
   var app=$('#app');if(!app)return;var y=window.scrollY;
-  if(S.boot){app.innerHTML='<div class="top"><div class="brand">MF nutrition <small>clienti</small></div></div><div class="card flat muted">Apro la cartella…</div>';return}
+  if(S.boot){app.innerHTML='<div class="top"><div class="brand">MF metabolism &amp; fitness <small>clienti</small></div></div><div class="card flat muted">Apro la cartella…</div>';return}
   app.innerHTML=S.view==='list'?listView():S.view==='agenda'?agendaView():S.view==='bilancio'?bilancioView():clientView();
   window.scrollTo(0,y);setStatus();
 }
 
 /* ---------- Elenco clienti ---------- */
 function listView(){
-  var h='<div class="top"><div class="brand">MF nutrition <small>clienti</small></div></div>';
+  var h='<div class="top"><div class="brand">MF metabolism &amp; fitness <small>clienti</small></div></div>';
   h+='<div class="card stack"><label class="f"><span class="l">Cerca o aggiungi un cliente</span><input type="search" id="q" data-bind="u.q" placeholder="Nome e cognome" autocomplete="off" value="'+esc(S.ui.q)+'"></label>';
   h+='<div class="row"><button class="btn" data-act="newClient">'+ICON.plus.replace('<svg','<svg width="18" height="18"')+'Aggiungi cliente</button></div>';
   if(S.err['new'])h+='<div class="msg err">'+esc(S.err['new'])+'</div>';
