@@ -218,6 +218,9 @@ ul.clean{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}
 .check input{width:20px;height:20px;accent-color:var(--accent);flex:none}
 .tabbar.five .tab{font-size:11px}
 .tabbar.six .tab{font-size:10px;padding-left:0;padding-right:0}
+.hist{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:2px 0 6px}
+.hist .hv{white-space:nowrap}
+.xbtn:disabled{opacity:.3}
 .tabbar.seven .tab{font-size:9px;padding-left:0;padding-right:0}
 .tabbar.seven .tab svg{width:20px;height:20px}
 .strip{display:grid;grid-template-columns:40% 1fr;gap:10px;align-items:start;padding:6px 0 10px;border-top:1px solid var(--line)}
@@ -251,22 +254,22 @@ try{var raw=localStorage.getItem(__KEY);if(raw)__store=JSON.parse(raw)||{}}catch
 var __ts={};try{__ts=JSON.parse(localStorage.getItem(__KEY+'_ts')||'{}')||{}}catch(e){}
 function __touch(p,del){__ts[p]=Date.now();try{localStorage.setItem(__KEY+'_ts',JSON.stringify(__ts))}catch(e){}if(window.__cloudPush)window.__cloudPush(p,del)}
 function __save(){if(!__persist)return;try{localStorage.setItem(__KEY,JSON.stringify(__store))}catch(e){__persist=false;var b=document.getElementById('bkwarn');if(b)b.hidden=false}}
-function __notify(){__subs.slice().forEach(function(s){try{s()}catch(e){}})}
+function __notify(p){__subs.slice().forEach(function(s){if(p&&s.__p){var rel=s.__k==='d'?s.__p===p:p.slice(0,p.lastIndexOf('/'))===s.__p;if(!rel)return}try{s()}catch(e){}})}
 function __id(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)+(++__n)}
 function __direct(p){var out=[],pre=p+'/';Object.keys(__store).forEach(function(k){if(k.indexOf(pre)===0&&k.slice(pre.length).indexOf('/')<0)out.push(k)});return out}
 function __snap(k){var ex=Object.prototype.hasOwnProperty.call(__store,k);return {id:k.split('/').pop(),exists:ex,data:function(){return ex?JSON.parse(JSON.stringify(__store[k])):undefined},metadata:{fromCache:false,hasPendingWrites:false}}}
 function __doc(path){return {id:path.split('/').pop(),path:path,
  get:function(){return Promise.resolve(__snap(path))},
- set:function(d){__store[path]=JSON.parse(JSON.stringify(d));__save();__touch(path);setTimeout(__notify,0);return Promise.resolve()},
- update:function(d){__store[path]=Object.assign(__store[path]||{},JSON.parse(JSON.stringify(d)));__save();__touch(path);setTimeout(__notify,0);return Promise.resolve()},
- delete:function(){delete __store[path];__save();__touch(path,true);setTimeout(__notify,0);return Promise.resolve()},
+ set:function(d){__store[path]=JSON.parse(JSON.stringify(d));__save();__touch(path);setTimeout(function(){__notify(path)},0);return Promise.resolve()},
+ update:function(d){__store[path]=Object.assign(__store[path]||{},JSON.parse(JSON.stringify(d)));__save();__touch(path);setTimeout(function(){__notify(path)},0);return Promise.resolve()},
+ delete:function(){delete __store[path];__save();__touch(path,true);setTimeout(function(){__notify(path)},0);return Promise.resolve()},
  collection:function(p){return __coll(path+'/'+p)},
- onSnapshot:function(f){var s=function(){f(__snap(path))};__subs.push(s);setTimeout(s,0);return function(){var i=__subs.indexOf(s);if(i>=0)__subs.splice(i,1)}}}}
+ onSnapshot:function(f){var s=function(){f(__snap(path))};s.__p=path;s.__k='d';__subs.push(s);setTimeout(s,0);return function(){var i=__subs.indexOf(s);if(i>=0)__subs.splice(i,1)}}}}
 function __coll(path){var q={path:path,
  doc:function(id){return __doc(path+'/'+(id||__id()))},
  get:function(){var docs=__direct(path).map(__snap);return Promise.resolve({docs:docs,size:docs.length,empty:!docs.length})},
  add:function(d){var r=q.doc();return r.set(d).then(function(){return r})},
- onSnapshot:function(f){var s=function(){var docs=__direct(path).map(__snap);f({docs:docs,size:docs.length,empty:!docs.length,docChanges:function(){return []},metadata:{}})};__subs.push(s);setTimeout(s,0);return function(){var i=__subs.indexOf(s);if(i>=0)__subs.splice(i,1)}}};return q}
+ onSnapshot:function(f){var s=function(){var docs=__direct(path).map(__snap);f({docs:docs,size:docs.length,empty:!docs.length,docChanges:function(){return []},metadata:{}})};s.__p=path;s.__k='c';__subs.push(s);setTimeout(s,0);return function(){var i=__subs.indexOf(s);if(i>=0)__subs.splice(i,1)}}};return q}
 var __reg={
  db:{doc:__doc,collection:__coll},
  user:{id:function(){return Promise.resolve('locale')},isOwner:function(){return true},canEdit:function(){return true},can:function(){return true}},
@@ -808,9 +811,21 @@ function labsText(){
 function render(){
   var app=$('#app');if(!app)return;var y=window.scrollY;
   if(S.boot){app.innerHTML='<div class="top"><div class="brand"><img class="blogo" src="'+LOGO_APP+'" alt="">MF metabolism &amp; fitness <small>clienti</small></div></div><div class="card flat muted">Apro la cartella…</div>';return}
+  var fk=focusKey(app);
   app.innerHTML=S.view==='list'?listView():S.view==='agenda'?agendaView():S.view==='bilancio'?bilancioView():clientView();
-  window.scrollTo(0,y);setStatus();
+  window.scrollTo(0,y);setStatus();focusRestore(app,fk);
 }
+function typing(){var a=document.activeElement;return !!(a&&a.matches&&a.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea')&&a.closest&&a.closest('#app'))}
+function focusKey(app){
+  var el=document.activeElement;if(!el||!el.matches||!el.matches('input,textarea,select')||!app.contains(el))return null;
+  var names=['data-bind','data-train','data-plan','data-lab','data-q','id'];
+  for(var i=0;i<names.length;i++){var v=el.getAttribute(names[i]);if(v!=null&&v!==''){
+    var sel='['+names[i]+'="'+String(v).replace(/"/g,'\\"')+'"]',all=[].slice.call(app.querySelectorAll(sel));
+    var k={sel:sel,idx:Math.max(0,all.indexOf(el))};try{k.s=el.selectionStart;k.e=el.selectionEnd}catch(x){}return k}}
+  return null}
+function focusRestore(app,k){
+  if(!k)return;try{var all=app.querySelectorAll(k.sel),el=all[k.idx]||all[0];if(!el)return;
+    el.focus({preventScroll:true});if(k.s!=null&&el.setSelectionRange){try{el.setSelectionRange(k.s,k.e)}catch(x){}}}catch(e){}}
 
 /* ---------- Elenco clienti ---------- */
 function listView(){
@@ -1441,14 +1456,14 @@ function mainTabs(active){
   return '<nav class="tabbar"><div class="in" style="grid-template-columns:repeat(3,1fr)">'+tabs.map(function(t){return '<button class="tab'+(active===t[0]?' on':'')+'" data-act="nav" data-t="'+t[0]+'">'+ICON[t[2]]+t[1]+'</button>'}).join('')+'</div></nav>'}
 
 function startExtra(){
-  appRoot().collection('guidephotos').onSnapshot(function(snap){var m={};snap.docs.forEach(function(d){var o=d.data();if(o&&o.data)m[d.id]=o.data});S.gph=m;if(S.ui.guide)render()},function(){});
-  appRoot().collection('tpl').onSnapshot(function(snap){S.tpl=snap.docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});if(S.view==='client'&&S.tab==='allenamento'&&!S.busy.train)render()},function(){});
+  appRoot().collection('guidephotos').onSnapshot(function(snap){var m={};snap.docs.forEach(function(d){var o=d.data();if(o&&o.data)m[d.id]=o.data});var ch=JSON.stringify(m)!==JSON.stringify(S.gph||{});S.gph=m;if(ch&&S.ui.guide&&!typing())render()},function(){});
+  appRoot().collection('tpl').onSnapshot(function(snap){var nl=snap.docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});var ch=JSON.stringify(nl)!==JSON.stringify(S.tpl||[]);S.tpl=nl;if(ch&&S.view==='client'&&S.tab==='allenamento'&&!S.busy.train&&!typing())render()},function(){});
   appRoot().collection('appts').onSnapshot(function(snap){
     S.appts=snap.docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});S.apptsLoaded=true;
-    if(S.view==='agenda'&&!S.ui.apptForm)render()},function(){S.apptsLoaded=true});
+    if(S.view==='agenda'&&!S.ui.apptForm&&!typing())render()},function(){S.apptsLoaded=true});
   appRoot().collection('ledger').onSnapshot(function(snap){
     S.ledger=snap.docs.map(function(d){var o=clone(d.data());o.id=d.id;return o});S.ledgerLoaded=true;
-    if(S.view==='bilancio'&&!S.ui.ledForm)render()},function(){S.ledgerLoaded=true});
+    if(S.view==='bilancio'&&!S.ui.ledForm&&!typing())render()},function(){S.ledgerLoaded=true});
   appRoot().collection('settings').doc('studio').get().then(function(d){if(d.exists){S.studio=Object.assign({studio:'',pro:'',contatto:''},clone(d.data()));if(!S.studio.studio||/^\s*MF\s*nutrition\s*$/i.test(S.studio.studio)){S.studio.studio='MF metabolism & fitness'}if(!S.studio.colore||S.studio.colore==='verde')S.studio.colore='viola';if(S.view==='client'&&S.tab==='report')render()}},function(){});
 }
 function saveStudio(){debounce('studio',function(){var data=clone(S.studio);enqueue('studio',function(){return appRoot().collection('settings').doc('studio').set(data)})},800)}
@@ -1667,6 +1682,7 @@ function moreClick(a,el,id){
    case 'undoPlan':undoPlan();return true;
    case 'makePdf':makePdf();return true;
    case 'planPdf':makePdf('piano');return true;
+   case 'archView':archView(el.getAttribute('data-k'),el.getAttribute('data-id'));return true;
    case 'archSave':archSave(el.getAttribute('data-k'));return true;
    case 'archUseAsk':S.ui.archUse=el.getAttribute('data-id');S.ui.archDel=null;render();return true;
    case 'archDelAsk':S.ui.archDel=el.getAttribute('data-id');S.ui.archUse=null;render();return true;
@@ -1741,7 +1757,7 @@ function pdfChart(doc,x,y,w,h,title,pts,unit,dec){
   doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
   doc.text(fmtDate(pts[0].d),px,y+h-3);doc.text(fmtDate(lp.d),px+pw,y+h-3,{align:'right'})}
 
-async function makePdf(mode){
+async function makePdf(mode,data,view){
   var only=mode==='piano',BK=only?'ppdf':'pdf',EK=only?'plan':'pdf';
   S.busy[BK]=true;S.err[EK]=null;S.info[EK]=null;render();
   try{
@@ -1836,7 +1852,7 @@ async function makePdf(mode){
         if(L.note){para(L.note,9.5,MUT)}})}
 
     /* piano */
-    var P=S.plan;
+    var P=(only&&data)||S.plan;
     if(o.piano&&P&&P.days&&P.days.length){
       section('Il tuo piano alimentare');
       if(P.riassunto)para(P.riassunto,10,INK,4);
@@ -1868,11 +1884,14 @@ async function makePdf(mode){
     var fname=(only?'piano-alimentare-':'report-')+String(c.name||'cliente').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+today()+'.pdf';
     var buf=doc.output('arraybuffer');
     if(!S.downloads)throw {code:'nodl'};
+    if(view&&openPdf(buf)){S.busy[BK]=false;S.info[EK]='PDF aperto in un\'altra scheda.';render();return}
     S.busy[BK]=false;
     try{await S.downloads.save({filename:fname,data:buf});S.info[EK]='PDF creato.'}
     catch(er){if(er&&er.code==='declined'){S.info[EK]=null}else S.err[EK]='Il PDF è pronto ma il salvataggio non è riuscito. Riprova.'}
   }catch(e){S.err[EK]=(e&&e.code==='nodl')?'Il download non è disponibile in questa vista.':'Non sono riuscita a creare il PDF. Controlla la connessione e riprova.'}
   S.busy[BK]=false;render()}
+
+function openPdf(buf){try{var u=URL.createObjectURL(new Blob([buf],{type:'application/pdf'})),w=S._vw;S._vw=null;if(w&&!w.closed){w.location.href=u;return true}}catch(e){}return false}
 
 /* ================= Allenamento (scheda del personal trainer) ================= */
 var EX_LIB={
@@ -1963,11 +1982,10 @@ function tabAllenamento(){
   h+='<div class="row">'+(S.ui.confirmTDay===di?'<button class="btn danger on sm" data-act="delTDay">Elimina giorno</button><button class="btn ghost sm" data-act="delTDayNo">Annulla</button>':'<button class="btn danger sm" data-act="delTDayAsk">Elimina giorno</button>')+'</div>';
   (day.esercizi||[]).forEach(function(e,ei){
     var pre='days.'+di+'.esercizi.'+ei;
-    h+='<div class="meal"><div class="mh"><input class="nm" type="text" list="exlib" aria-label="Esercizio" data-train="'+pre+'.nome" value="'+esc(e.nome||'')+'" placeholder="Esercizio (scrivi o scegli)"><button class="xbtn" data-act="delEx" data-e="'+ei+'" aria-label="Elimina esercizio">×</button></div>';
+    h+='<div class="meal"><div class="mh"><input class="nm" type="text" list="exlib" aria-label="Esercizio" data-train="'+pre+'.nome" value="'+esc(e.nome||'')+'" placeholder="Esercizio (scrivi o scegli)"><button class="xbtn" data-act="exUp" data-e="'+ei+'" aria-label="Sposta su"'+(ei===0?' disabled':'')+'>↑</button><button class="xbtn" data-act="exDown" data-e="'+ei+'" aria-label="Sposta giù"'+(ei===(day.esercizi.length-1)?' disabled':'')+'>↓</button><button class="xbtn" data-act="delEx" data-e="'+ei+'" aria-label="Elimina esercizio">×</button></div>'+histHtml(e.nome,e.storico);
     h+='<div class="grid w2" style="grid-template-columns:repeat(4,1fr);gap:6px"><label class="f"><span class="l">Serie</span><input type="text" inputmode="numeric" data-train="'+pre+'.serie" value="'+esc(e.serie||'')+'"></label><label class="f"><span class="l">Rip.</span><input type="text" data-train="'+pre+'.rip" value="'+esc(e.rip||'')+'"></label><label class="f"><span class="l">Recupero</span><input type="text" data-train="'+pre+'.rec" value="'+esc(e.rec||'')+'"></label><label class="f"><span class="l">Carico</span><input type="text" data-train="'+pre+'.carico" value="'+esc(e.carico||'')+'" placeholder="kg"></label></div>';
     h+='<input class="nt" type="text" aria-label="Nota" data-train="'+pre+'.note" value="'+esc(e.note||'')+'" placeholder="Nota (opzionale)">';
     h+='<div class="row" style="align-items:flex-end">'+grSelect(pre,e.gr||exGroup(e.nome))+'<label class="f" style="flex:1;min-width:120px"><span class="l">Link video (opzionale)</span><input type="text" inputmode="url" data-train="'+pre+'.video" value="'+esc(e.video||'')+'" placeholder="https://…"></label><button class="btn ghost sm" data-act="exVideo" data-e="'+ei+'" aria-label="Apri o cerca il video">▶ Video</button></div>';
-    var st=(e.storico||[]).slice(-1)[0];if(st)h+='<div class="small muted">Ultimo registrato: '+esc(st.v)+' il '+esc(fmtDate(st.d))+'</div>';
     h+='</div>'});
   h+='<div class="row"><button class="btn ghost sm" data-act="addEx">+ Esercizio</button><select id="exgrp" aria-label="Aggiungi dalla libreria" data-act-change="1"><option value="">Aggiungi dalla libreria…</option>'+Object.keys(EX_LIB).map(function(g){return '<optgroup label="'+esc(g)+'">'+EX_LIB[g].map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>'}).join('')+'</optgroup>'}).join('')+'</select></div>';
   h+='<div class="card stack"><label class="f"><span class="l">Consigli generali</span><textarea rows="4" data-train="consigli">'+esc(Array.isArray(T0.consigli)?T0.consigli.join('\n'):(T0.consigli||''))+'</textarea></label><label class="f"><span class="l">Le tue note</span><textarea rows="3" data-train="note">'+esc(T0.note||'')+'</textarea></label></div>';
@@ -2035,6 +2053,7 @@ function moreTrainClick(a,el){
    case 'delTDayNo':S.ui.confirmTDay=null;render();return true;
    case 'delTDay':T0.days.splice(di,1);S.ui.confirmTDay=null;S.ui.tday=0;saveTrain(true);render();return true;
    case 'addEx':T0.days[di].esercizi.push({nome:'',serie:'3',rip:'10',rec:'60 s',carico:'',note:'',gr:'',video:'',storico:[]});saveTrain();render();return true;
+   case 'exUp':case 'exDown':{var arr=T0.days[di].esercizi,i0=parseInt(el.getAttribute('data-e'),10),i1=a==='exUp'?i0-1:i0+1;if(i1>=0&&i1<arr.length){var tmp=arr[i0];arr[i0]=arr[i1];arr[i1]=tmp;saveTrain();render()}return true}
    case 'delEx':T0.days[di].esercizi.splice(parseInt(el.getAttribute('data-e'),10),1);saveTrain();render();return true;
    case 'trainAsk':S.ui.confirmTrain=true;render();return true;
    case 'trainAskNo':S.ui.confirmTrain=false;render();return true;
@@ -2057,12 +2076,12 @@ function moreTrainClick(a,el){
    case 'phNo':S.ui.phDel=null;render();return true;
    case 'delPh':{var pid=el.getAttribute('data-id');base().collection('photos').doc(pid).delete().then(function(){S.photos=S.photos.filter(function(p){return p.id!==pid});S.ui.phView=null;S.ui.phDel=null;render()});return true}}
   return false}
-async function makeTrainPdf(){
+async function makeTrainPdf(data,view){
   S.busy.tpdf=true;S.err.tpdf=null;S.info.tpdf=null;render();
   try{
     await loadPdfLib();applyBrand();
     var jsPDF=window.jspdf.jsPDF,doc=new jsPDF({unit:'mm',format:'a4'});
-    var M=16,CW=178,TOP=24,BOT=282,y=0,c=S.client,studio=S.studio,T0=ensureTrain(),v=T0.valut;
+    var M=16,CW=178,TOP=24,BOT=282,y=0,c=S.client,studio=S.studio,T0=data||ensureTrain(),v=T0.valut;
     var ensure=function(h){if(y+h>BOT){doc.addPage();y=TOP}};
     var setT=function(sz,st,col){doc.setFont('helvetica',st||'normal');doc.setFontSize(sz);col=col||INK;doc.setTextColor(col[0],col[1],col[2])};
     var para=function(text,sz,col){sz=sz||10;setT(sz,'normal',col);doc.splitTextToSize(T(text),CW).forEach(function(ln){ensure(sz*0.5+1);doc.text(ln,M,y);y+=sz*0.5});y+=3};
@@ -2092,11 +2111,25 @@ async function makeTrainPdf(){
       doc.text('Pagina '+pg+' di '+n,M+CW,292.5,{align:'right'})}
     var fname='scheda-'+String(c.name||'cliente').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+today()+'.pdf';
     var buf=doc.output('arraybuffer');if(!S.downloads)throw {code:'nodl'};
+    if(view&&openPdf(buf)){S.busy.tpdf=false;S.info.arch='PDF aperto in un\'altra scheda.';render();return}
     S.busy.tpdf=false;
     try{await S.downloads.save({filename:fname,data:buf});S.info.tpdf='PDF creato.'}
     catch(er){if(er&&er.code==='declined'){S.info.tpdf=null}else S.err.tpdf='Il PDF è pronto ma il salvataggio non è riuscito. Riprova.'}
   }catch(e){S.err.tpdf=(e&&e.code==='nodl')?'Il download non è disponibile in questa vista.':'Non sono riuscita a creare il PDF. Controlla la connessione e riprova.'}
   S.busy.tpdf=false;render()}
+
+/* carichi delle volte precedenti, sotto il nome dell'esercizio (anche dalle schede memorizzate) */
+function histFor(nome,cur){
+  var n=String(nome||'').trim().toLowerCase();if(!n)return [];
+  var m={};
+  var add=function(l){(l||[]).forEach(function(s){if(s&&s.d&&s.v!=null&&String(s.v).trim()!==''&&!m[s.d])m[s.d]=String(s.v)})};
+  add(cur);
+  (S.trainArch||[]).forEach(function(a){((a.data&&a.data.days)||[]).forEach(function(d){(d.esercizi||[]).forEach(function(e){if(String(e.nome||'').trim().toLowerCase()===n)add(e.storico)})})});
+  return Object.keys(m).sort().reverse().map(function(d){return {d:d,v:m[d]}})}
+function histHtml(nome,cur){
+  var l=histFor(nome,cur);if(!l.length)return '';
+  var sd=function(d){var p=d.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0].slice(2):d};
+  return '<div class="hist"><span class="small muted">Scorse volte:</span> '+l.slice(0,6).map(function(s){return '<span class="hv"><span class="small muted">'+esc(sd(s.d))+'</span> <b>'+esc(s.v)+'</b></span>'}).join('')+(l.length>6?'<span class="small muted"> e altre '+(l.length-6)+'</span>':'')+'</div>'}
 
 /* ================= Guida illustrata: come si misurano pliche e circonferenze ================= */
 var GUIDE_PL=[
@@ -2459,7 +2492,7 @@ var ARCH={
 function archLoad(docs){return docs.filter(function(d){return d.id!=='current'}).map(function(d){var o=clone(d.data());o.id=d.id;return o}).filter(function(o){return o.data}).sort(function(a,b){return (b.savedAt||0)-(a.savedAt||0)})}
 function archHtml(k){
   var c=ARCH[k],cur=c.get(),has=cur&&(cur.days||[]).length,l=S[c.list]||[];
-  var h='<div class="card stack"><h2 style="font-size:18px">'+c.title+'</h2><div class="small muted">Memorizza la versione attuale per ritrovarla e modificarla in futuro'+(k==='train'?': restano anche i carichi registrati':'')+'. Aprire una versione memorizzata sostituisce quella attuale.</div>';
+  var h='<div class="card stack"><h2 style="font-size:18px">'+c.title+'</h2><div class="small muted">Memorizza la versione attuale per ritrovarla e modificarla in futuro'+(k==='train'?': restano anche i carichi registrati':'')+'. <b>Consulta</b> apre la versione memorizzata in PDF, senza toccare quella su cui lavori; <b>Apri</b> la rimette al posto di quella attuale.</div>';
   if(has)h+='<div class="row"><input type="text" data-bind="u.archName" placeholder="Nome (es. '+c.def+' di '+new Date().toLocaleDateString('it-IT',{month:'long'})+')" value="'+esc(S.ui.archName||'')+'" style="flex:1;min-width:140px"><button class="btn sm" data-act="archSave" data-k="'+k+'">Memorizza</button></div>';
   if(S.err.arch)h+='<div class="msg err">'+esc(S.err.arch)+'</div>';
   if(S.info.arch)h+='<div class="msg ok">'+esc(S.info.arch)+'</div>';
@@ -2469,7 +2502,7 @@ function archHtml(k){
     h+='<div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:8px"><div><b>'+esc(t.name||c.def)+'</b><div class="small muted">'+esc(fmtDate(new Date(t.savedAt||Date.now()).toISOString().slice(0,10)))+' · '+esc(c.info(t.data||{}))+'</div></div><div class="row">';
     if(S.ui.archUse===t.id)h+='<button class="btn ai sm" data-act="archUse" data-k="'+k+'" data-id="'+id+'">'+(has?'Sì, sostituisci l\'attuale':'Apri')+'</button><button class="btn ghost sm" data-act="archNo">Annulla</button>';
     else if(S.ui.archDel===t.id)h+='<button class="btn danger on sm" data-act="archDel" data-k="'+k+'" data-id="'+id+'">Elimina</button><button class="btn ghost sm" data-act="archNo">Annulla</button>';
-    else h+='<button class="btn ghost sm" data-act="archUseAsk" data-id="'+id+'">Apri</button><button class="btn ghost sm" data-act="archDelAsk" data-id="'+id+'">Elimina</button>';
+    else h+='<button class="btn sm" data-act="archView" data-k="'+k+'" data-id="'+id+'">Consulta</button><button class="btn ghost sm" data-act="archUseAsk" data-id="'+id+'">Apri</button><button class="btn ghost sm" data-act="archDelAsk" data-id="'+id+'">Elimina</button>';
     h+='</div></div>'});
   return h+'</div>'}
 async function archSave(k){
@@ -2489,6 +2522,12 @@ async function archDel(k,id){
   try{await base().collection(c.coll).doc(id).delete();S[c.list]=(S[c.list]||[]).filter(function(x){return x.id!==id});S.ui.archDel=null;S.info.arch='Eliminato.'}
   catch(e){S.err.arch='Non sono riuscita a eliminare. Riprova.'}
   render()}
+
+function archView(k,id){
+  var c=ARCH[k],it=(S[c.list]||[]).filter(function(x){return x.id===id})[0];if(!it||!it.data)return;
+  try{S._vw=window.open('','_blank');if(S._vw&&S._vw.document)S._vw.document.write('<p style="font-family:sans-serif;padding:24px">Preparo il PDF…</p>')}catch(e){S._vw=null}
+  S.err.arch=null;S.info.arch=null;S.err.plan=null;S.err.tpdf=null;
+  if(k==='plan')makePdf('piano',clone(it.data),true);else makeTrainPdf(clone(it.data),true)}
 
 /* ---------- Eventi ---------- */
 function bindRoot(ch){return ch==='c'?S.client:ch==='d'?S.draft:ch==='u'?S.ui:ch==='p'?ensurePlan().settings:ch==='a'?S.ui.apptForm:ch==='l'?S.ui.ledForm:ch==='r'?S.ui.rep:ch==='s'?S.studio:ch==='t'?ensureTrain().valut:null}
